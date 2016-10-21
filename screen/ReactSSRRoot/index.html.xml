@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-2.0.xsd" require-authentication="false" track-artifact-hit="false"
+        default-menu-include="false" standalone="true">
+    <actions>
+        <script><![CDATA[
+            import jdk.nashorn.api.scripting.NashornScriptEngine
+            import javax.script.ScriptEngineManager
+            import javax.script.ScriptException
+            import java.io.InputStream
+            import java.io.InputStreamReader
+            import java.io.Reader
+            import java.util.List
+            import org.moqui.context.ResourceReference
+            import org.moqui.context.ExecutionContext
+            import com.fasterxml.jackson.databind.ObjectMapper
+
+public class React {
+    private ExecutionContext ec
+
+    React(ExecutionContext ec) {
+        this.ec = ec
+    }
+
+    private ThreadLocal<NashornScriptEngine> engineHolder = new ThreadLocal<NashornScriptEngine>() {
+        @Override
+        protected NashornScriptEngine initialValue() {
+            NashornScriptEngine nashornScriptEngine = (NashornScriptEngine) new ScriptEngineManager().getEngineByName("nashorn");
+            try {
+                nashornScriptEngine.eval(read("static/nashorn-polyfill.js"));
+                nashornScriptEngine.eval(read("static/vendor/react.js"));
+                nashornScriptEngine.eval(read("static/vendor/showdown.min.js"));
+                nashornScriptEngine.eval(read("static/commentBox.js"));
+            } catch (ScriptException e) {
+                throw new RuntimeException(e);
+            }
+            return nashornScriptEngine;
+        }
+    };
+
+    public  String renderCommentBox(List<Object> comments) {
+        try {
+            Object html = engineHolder.get().invokeFunction("renderServer", comments);
+            return String.valueOf(html);
+        }
+        catch (Exception e) {
+            throw new IllegalStateException("failed to render react component", e);
+        }
+    }
+
+    private Reader read(String location) {
+        ResourceReference rr = ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/resources/" + location)
+        InputStream inputStream = rr.openStream()
+        return new InputStreamReader(inputStream);
+    }
+}
+
+        def comments = [
+            ["author":"Peter Parker", "text":"This is a comment."],
+            ["author":"John Doe","text":"This is *another* comment."]
+        ]
+
+        React react = new React(ec)
+        ObjectMapper mapper = new ObjectMapper()
+
+        String commentBox = react.renderCommentBox(comments);
+        String data = mapper.writeValueAsString(comments);
+
+        ec.context.put("content", commentBox);
+        ec.context.put("data", data);
+
+        ]]></script>
+
+    </actions>
+    <widgets>
+        <render-mode>
+            <text type="html" template="true" location="component://react-ssr/screen/ReactSSRRoot/includes/index.html.ftl"/>
+        </render-mode>
+    </widgets>
+</screen>

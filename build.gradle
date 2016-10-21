@@ -1,0 +1,57 @@
+apply plugin: 'groovy'
+
+sourceCompatibility = '1.8'
+
+def moquiDir = file(projectDir.absolutePath + '/../../..')
+def frameworkDir = file(moquiDir.absolutePath + '/framework')
+def componentNode = parseComponent(project)
+version = componentNode.@version
+
+// to run use "gradle dependencyUpdates"
+apply plugin: 'com.github.ben-manes.versions'
+buildscript {
+    repositories { jcenter() }
+    dependencies { classpath 'com.github.ben-manes:gradle-versions-plugin:0.13.0' }
+}
+
+dependencyUpdates.resolutionStrategy = {
+    componentSelection { rules ->
+        rules.all { ComponentSelection selection ->
+            boolean rejected = ['alpha', 'beta', 'rc', 'cr', 'm'].any { qualifier -> selection.candidate.version ==~ /(?i).*[.-]${qualifier}[.\d-]*/ }
+            if (rejected) selection.reject('Release candidate')
+        }
+    }
+}
+
+// maybe in the future: repositories { mavenCentral() }
+repositories {
+    flatDir name: 'frameworkLib', dirs: frameworkDir.absolutePath + '/lib'
+    //flatDir name: 'localLib', dirs: projectDir.absolutePath + '/lib'
+    jcenter()
+}
+
+dependencies {
+    compile project(':framework')
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.8.4'
+    testCompile project(':framework').configurations.testCompile.allDependencies
+}
+
+// by default the Java plugin runs test on build, change to not do that (only run test if explicit task)
+check.dependsOn.remove(test)
+task cleanLib(type: Delete) { delete fileTree(dir: projectDir.absolutePath + '/lib', include: '*') }
+clean.dependsOn cleanLib
+
+jar {
+    destinationDir = file(projectDir.absolutePath + '/lib')
+    // this is required to change from the default that includes the path to this module (ie 'runtime/base-componet/example')
+    baseName = componentNode.@name
+}
+
+task copyDependencies << {
+    copy {
+        from(configurations.runtime - project(':framework').configurations.runtime - project(':framework').jar.archivePath)
+        into file(projectDir.absolutePath + '/lib')
+    }
+}
+copyDependencies.dependsOn cleanLib
+jar.dependsOn copyDependencies

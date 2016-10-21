@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-2.0.xsd"
+    default-menu-index="15" default-menu-title="React SSR">
+    <transition name="comments.json">
+        <actions>
+            <script>
+                comments = [
+                    ["author":"Peter Parker", "text":"This is a comment."],
+                    ["author":"John Doe","text":"This is *another* comment."]
+                ]
+                ec.web.sendJsonResponse(comments)
+            </script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <subscreens default-item="index.html"/>
+
+    <widgets>
+        <subscreens-active/>
+    </widgets>
+</screen>

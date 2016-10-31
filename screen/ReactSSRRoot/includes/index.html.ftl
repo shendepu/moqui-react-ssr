@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
     <link rel="shortcut icon" href="/dist/favicon.ico">
-    <link href="/dist/app.ab3903a4bcef64cbd3edacd9434dca79.css" rel="stylesheet">
+    <link href="/dist/${ec.context.cssFileMap['app'].getFileName()}" rel="stylesheet">
 </head>
 <body>
     <script>

@@ -23,18 +23,24 @@
                   ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/static/print-app.js"))
     // jsFileMap.put('1.counter',null)
 
+    Map<String, ResourceReference> cssFileMap = new LinkedHashMap<>()
+    cssFileMap.put('app', null)
+
     ResourceReference rr = ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/dist")
     for (ResourceReference fileRr in rr.getDirectoryEntries()) {
         if (!fileRr.isFile()) continue
         String fileName = fileRr.getFileName()
-        if (!fileName.endsWith(".js")) continue
-
-        if (fileName.startsWith("vendor.")) jsFileMap["vendor"] = fileRr
-        if (fileName.startsWith("app.")) jsFileMap["app"] = fileRr
-        if (fileName.startsWith("1.counter.")) jsFileMap["1.counter"] = fileRr
+        if (fileName.endsWith(".js")) {
+            if (fileName.startsWith("vendor.")) jsFileMap["vendor"] = fileRr
+            if (fileName.startsWith("app.")) jsFileMap["app"] = fileRr
+            if (fileName.startsWith("1.counter.")) jsFileMap["1.counter"] = fileRr
+        } else if (fileName.endsWith(".css")) {
+            if (fileName.startsWith("app.")) cssFileMap["app"] = fileRr
+        }
     }
 
     ec.context.put('jsFileMap', jsFileMap)
+    ec.context.put('cssFileMap', cssFileMap)
 
 public class React {
     private ExecutionContext ec

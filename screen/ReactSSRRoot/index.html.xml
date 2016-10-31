@@ -10,9 +10,31 @@
             import java.io.InputStreamReader
             import java.io.Reader
             import java.util.List
-            import org.moqui.context.ResourceReference
+            import org.moqui.resource.ResourceReference
             import org.moqui.context.ExecutionContext
             import com.fasterxml.jackson.databind.ObjectMapper
+
+    Map<String, ResourceReference> jsFileMap = new LinkedHashMap<>()
+    jsFileMap.put('nashorn-polyfill',
+                  ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/static/nashorn-polyfill.js"))
+    jsFileMap.put('vendor', null)
+    jsFileMap.put('app', null)
+    jsFileMap.put('print-app',
+                  ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/static/print-app.js"))
+    // jsFileMap.put('1.counter',null)
+
+    ResourceReference rr = ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/dist")
+    for (ResourceReference fileRr in rr.getDirectoryEntries()) {
+        if (!fileRr.isFile()) continue
+        String fileName = fileRr.getFileName()
+        if (!fileName.endsWith(".js")) continue
+
+        if (fileName.startsWith("vendor.")) jsFileMap["vendor"] = fileRr
+        if (fileName.startsWith("app.")) jsFileMap["app"] = fileRr
+        if (fileName.startsWith("1.counter.")) jsFileMap["1.counter"] = fileRr
+    }
+
+    ec.context.put('jsFileMap', jsFileMap)
 
 public class React {
     private ExecutionContext ec
@@ -26,10 +48,16 @@ public class React {
         protected NashornScriptEngine initialValue() {
             NashornScriptEngine nashornScriptEngine = (NashornScriptEngine) new ScriptEngineManager().getEngineByName("nashorn");
             try {
-                nashornScriptEngine.eval(read("static/nashorn-polyfill.js"));
-                nashornScriptEngine.eval(read("static/vendor/react.js"));
-                nashornScriptEngine.eval(read("static/vendor/showdown.min.js"));
-                nashornScriptEngine.eval(read("static/commentBox.js"));
+                for (ResourceReference rr in ec.context.jsFileMap.values()) {
+                    if (rr == null) continue
+                    ec.logger.info("jsFileMap: ${rr.getFileName()}")
+                }
+
+                for (Map.Entry<String, ResourceReference> entry in ec.context.jsFileMap) {
+                    if (entry.getValue() == null) continue
+                    ec.logger.info("Evaluating ${entry.getKey()}")
+                    Object o = nashornScriptEngine.eval(new InputStreamReader(entry.getValue().openStream()))
+                }
             } catch (ScriptException e) {
                 throw new RuntimeException(e);
             }
@@ -47,8 +75,20 @@ public class React {
         }
     }
 
+    public String render() {
+        try {
+            ec.logger.info("start server rendering")
+            Object html = engineHolder.get().invokeFunction("renderServer");
+
+            return String.valueOf(html);
+        }
+        catch (Exception e) {
+            throw new IllegalStateException("failed to render react", e);
+        }
+    }
+
     private Reader read(String location) {
-        ResourceReference rr = ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/resources/" + location)
+        ResourceReference rr = ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/" + location)
         InputStream inputStream = rr.openStream()
         return new InputStreamReader(inputStream);
     }
@@ -60,13 +100,10 @@ public class React {
         ]
 
         React react = new React(ec)
-        ObjectMapper mapper = new ObjectMapper()
 
-        String commentBox = react.renderCommentBox(comments);
-        String data = mapper.writeValueAsString(comments);
-
-        ec.context.put("content", commentBox);
-        ec.context.put("data", data);
+        String contentHtml = react.render();
+        // String contentHtml = ""
+        ec.context.put("content", contentHtml);
 
         ]]></script>
 

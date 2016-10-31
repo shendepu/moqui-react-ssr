@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-2.0.xsd"
-    default-menu-index="15" default-menu-title="React SSR">
+    default-menu-index="15" default-menu-title="React SSR" require-authentication="anonymous-view">
     <transition name="comments.json">
         <actions>
             <script>

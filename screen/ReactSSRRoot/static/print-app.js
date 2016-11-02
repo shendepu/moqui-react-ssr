@@ -1,3 +1,7 @@
 function renderServer () {
-   return app['render']()
+  return app['render']()
+}
+
+function getState () {
+   return app['getState']()
 }

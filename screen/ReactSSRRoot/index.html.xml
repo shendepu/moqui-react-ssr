@@ -4,6 +4,11 @@
     <actions>
         <script><![CDATA[
             import jdk.nashorn.api.scripting.NashornScriptEngine
+            import jdk.nashorn.api.scripting.ScriptObjectMirror
+            import jdk.nashorn.api.scripting.JSObject
+            import java.util.function.Consumer
+            import java.util.function.Function
+
             import javax.script.ScriptEngineManager
             import javax.script.ScriptException
             import java.io.InputStream
@@ -17,6 +22,8 @@
     Map<String, ResourceReference> jsFileMap = new LinkedHashMap<>()
     jsFileMap.put('nashorn-polyfill',
                   ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/static/nashorn-polyfill.js"))
+    jsFileMap.put('nashorn-setTimeout',
+                  ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/static/nashorn-setTimeout.js"))
     jsFileMap.put('vendor', null)
     jsFileMap.put('app', null)
     jsFileMap.put('print-app',
@@ -42,74 +49,18 @@
     ec.context.put('jsFileMap', jsFileMap)
     ec.context.put('cssFileMap', cssFileMap)
 
-public class React {
-    private ExecutionContext ec
+        import com.moqui.ssr.React
 
-    React(ExecutionContext ec) {
-        this.ec = ec
-    }
-
-    private ThreadLocal<NashornScriptEngine> engineHolder = new ThreadLocal<NashornScriptEngine>() {
-        @Override
-        protected NashornScriptEngine initialValue() {
-            NashornScriptEngine nashornScriptEngine = (NashornScriptEngine) new ScriptEngineManager().getEngineByName("nashorn");
-            try {
-                for (ResourceReference rr in ec.context.jsFileMap.values()) {
-                    if (rr == null) continue
-                    ec.logger.info("jsFileMap: ${rr.getFileName()}")
-                }
-
-                for (Map.Entry<String, ResourceReference> entry in ec.context.jsFileMap) {
-                    if (entry.getValue() == null) continue
-                    ec.logger.info("Evaluating ${entry.getKey()}")
-                    Object o = nashornScriptEngine.eval(new InputStreamReader(entry.getValue().openStream()))
-                }
-            } catch (ScriptException e) {
-                throw new RuntimeException(e);
-            }
-            return nashornScriptEngine;
-        }
-    };
-
-    public  String renderCommentBox(List<Object> comments) {
-        try {
-            Object html = engineHolder.get().invokeFunction("renderServer", comments);
-            return String.valueOf(html);
-        }
-        catch (Exception e) {
-            throw new IllegalStateException("failed to render react component", e);
-        }
-    }
-
-    public String render() {
-        try {
-            ec.logger.info("start server rendering")
-            Object html = engineHolder.get().invokeFunction("renderServer");
-
-            return String.valueOf(html);
-        }
-        catch (Exception e) {
-            throw new IllegalStateException("failed to render react", e);
-        }
-    }
-
-    private Reader read(String location) {
-        ResourceReference rr = ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/" + location)
-        InputStream inputStream = rr.openStream()
-        return new InputStreamReader(inputStream);
-    }
-}
-
-        def comments = [
-            ["author":"Peter Parker", "text":"This is a comment."],
-            ["author":"John Doe","text":"This is *another* comment."]
-        ]
-
-        React react = new React(ec)
+        React react = new React(ec, jsFileMap)
 
         String contentHtml = react.render();
         // String contentHtml = ""
         ec.context.put("content", contentHtml);
+
+        Object state = react.getState()
+        // ec.logger.info(state)
+        System.out.println('--------- state')
+        System.out.println(state)
 
         ]]></script>
 

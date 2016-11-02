@@ -1,87 +1,101 @@
-// https://gist.github.com/josmardias/20493bd205e24e31c0a406472330515a
-// at least one timeout needs to be set, larger then your code bootstrap
-//  or Nashorn will run forever
-// preferably, put a timeout 0 after your code bootstrap
-
-(function (context) {
+/**
+ * js-timeout-polyfill
+ * @see https://blogs.oracle.com/nashorn/entry/setinterval_and_settimeout_javascript_functions
+ */
+(function (global) {
   'use strict';
 
-  var Timer = Java.type('java.util.Timer');
-  var Phaser = Java.type('java.util.concurrent.Phaser');
-
-  var timer = new Timer('jsEventLoop', false);
-  var phaser = new Phaser();
-
-  var timeoutStack = 0;
-
-  function pushTimeout() {
-    timeoutStack++;
+  if (global.setTimeout ||
+    global.clearTimeout ||
+    global.setInterval ||
+    global.clearInterval) {
+    return;
   }
 
-  function popTimeout() {
-    timeoutStack--;
-    if (timeoutStack > 0) {
-      return;
+  var Timer = global.Java.type('java.util.Timer');
+
+  function toCompatibleNumber(val) {
+    switch (typeof val) {
+      case 'number':
+        break;
+      case 'string':
+        val = parseInt(val, 10);
+        break;
+      case 'boolean':
+      case 'object':
+        val = 0;
+        break;
+
     }
-    timer.cancel();
-    phaser.forceTermination();
+    return val > 0 ? val : 0;
   }
 
-  var onTaskFinished = function () {
-    phaser.arriveAndDeregister();
-  };
+  function setTimerRequest(handler, delay, interval, args) {
+    handler = handler || function () {
+      };
+    delay = toCompatibleNumber(delay);
+    interval = toCompatibleNumber(interval);
 
-  context.setTimeout = function (fn, millis /* [, args...] */) {
-    var args = [].slice.call(arguments, 2, arguments.length);
-
-    var phase = phaser.register();
-    var canceled = false;
-    timer.schedule(function () {
-      if (canceled) {
-        return;
-      }
-
-      try {
-        fn.apply(context, args);
-      } catch (e) {
-        print(e);
-      } finally {
-        onTaskFinished();
-        popTimeout();
-      }
-    }, millis);
-
-    pushTimeout();
-
-    return function () {
-      onTaskFinished();
-      canceled = true;
-      popTimeout();
-    };
-  };
-
-  context.clearTimeout = function (cancel) {
-    cancel();
-  };
-
-  context.setInterval = function (fn, delay /* [, args...] */) {
-    var args = [].slice.call(arguments, 2, arguments.length);
-
-    var cancel = null;
-
-    var loop = function () {
-      cancel = context.setTimeout(loop, delay);
-      fn.apply(context, args);
+    var applyHandler = function () {
+      handler.apply(this, args);
     };
 
-    cancel = context.setTimeout(loop, delay);
-    return function () {
-      cancel();
-    };
+    /*var runLater = function () {
+     Platform.runLater(applyHandler);
+     };*/
+
+    var timer;
+    if (interval > 0) {
+      timer = new Timer('setIntervalRequest', true);
+      timer.schedule(applyHandler, delay, interval);
+    } else {
+      timer = new Timer('setTimeoutRequest', false);
+      timer.schedule(applyHandler, delay);
+    }
+
+    return timer;
+  }
+
+  function clearTimerRequest(timer) {
+    timer.cancel();
+  }
+
+  /////////////////
+  // Set polyfills
+  /////////////////
+  global.setInterval = function setInterval() {
+    var args = Array.prototype.slice.call(arguments);
+    var handler = args.shift();
+    var ms = args.shift();
+
+    return setTimerRequest(handler, ms, ms, args);
   };
 
-  context.clearInterval = function (cancel) {
-    cancel();
+  global.clearInterval = function clearInterval(timer) {
+    clearTimerRequest(timer);
+  };
+
+  global.setTimeout = function setTimeout() {
+    var args = Array.prototype.slice.call(arguments);
+    var handler = args.shift();
+    var ms = args.shift();
+
+    return setTimerRequest(handler, ms, 0, args);
+  };
+
+  global.clearTimeout = function clearTimeout(timer) {
+    clearTimerRequest(timer);
+  };
+
+  global.setImmediate = function setImmediate() {
+    var args = Array.prototype.slice.call(arguments);
+    var handler = args.shift();
+
+    return setTimerRequest(handler, 0, 0, args);
+  };
+
+  global.clearImmediate = function clearImmediate(timer) {
+    clearTimerRequest(timer);
   };
 
 })(this);

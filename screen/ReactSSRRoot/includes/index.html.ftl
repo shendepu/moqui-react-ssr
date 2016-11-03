@@ -9,7 +9,7 @@
 </head>
 <body>
     <script>
-        window.___INITIAL_STATE__ = { 'counter': 1 }
+        window.___INITIAL_STATE__ = ${storeState}
     </script>
 
     <div id="root" style="height: 100%">${content}</div>

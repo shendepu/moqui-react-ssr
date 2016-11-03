@@ -11,6 +11,7 @@
 
             import javax.script.ScriptEngineManager
             import javax.script.ScriptException
+            import javax.script.ScriptContext;
             import java.io.InputStream
             import java.io.InputStreamReader
             import java.io.Reader
@@ -22,13 +23,12 @@
     Map<String, ResourceReference> jsFileMap = new LinkedHashMap<>()
     jsFileMap.put('nashorn-polyfill',
                   ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/static/nashorn-polyfill.js"))
-    jsFileMap.put('nashorn-setTimeout',
-                  ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/static/nashorn-setTimeout.js"))
+    jsFileMap.put('nashorn-eventloop',
+                  ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/static/nashorn-eventloop.js"))
     jsFileMap.put('vendor', null)
     jsFileMap.put('app', null)
     jsFileMap.put('print-app',
                   ec.resource.getLocationReference("component://react-ssr/screen/ReactSSRRoot/static/print-app.js"))
-    // jsFileMap.put('1.counter',null)
 
     Map<String, ResourceReference> cssFileMap = new LinkedHashMap<>()
     cssFileMap.put('app', null)
@@ -40,7 +40,7 @@
         if (fileName.endsWith(".js")) {
             if (fileName.startsWith("vendor.")) jsFileMap["vendor"] = fileRr
             if (fileName.startsWith("app.")) jsFileMap["app"] = fileRr
-            if (fileName.startsWith("1.counter.")) jsFileMap["1.counter"] = fileRr
+            if (fileName.startsWith("0.counter.")) jsFileMap["0.counter"] = fileRr
         } else if (fileName.endsWith(".css")) {
             if (fileName.startsWith("app.")) cssFileMap["app"] = fileRr
         }
@@ -49,7 +49,105 @@
     ec.context.put('jsFileMap', jsFileMap)
     ec.context.put('cssFileMap', cssFileMap)
 
-        import com.moqui.ssr.React
+public class React {
+    private ExecutionContext ec;
+    private Map<String, ResourceReference> jsFileMap;
+
+    private Object html;
+    private Object error;
+    private boolean promiseResolved;
+
+    React(ExecutionContext ec, Map<String, ResourceReference> jsFileMap) {
+        this.ec = ec;
+        this.jsFileMap = jsFileMap;
+    }
+
+    private ThreadLocal<NashornScriptEngine> engineHolder = new ThreadLocal<NashornScriptEngine>() {
+        @Override
+        protected NashornScriptEngine initialValue() {
+            NashornScriptEngine nashornScriptEngine = (NashornScriptEngine) new ScriptEngineManager().getEngineByName("nashorn");
+            try {
+                for (ResourceReference rr : jsFileMap.values()){
+                    if (rr == null) continue;
+                    ec.getLogger().info("jsFileMap: " + rr.getFileName());
+                }
+
+                Consumer<String> println = { s -> System.out.println(s) };
+                ScriptContext sc = nashornScriptEngine.getContext();
+                sc.setAttribute("println", println, ScriptContext.ENGINE_SCOPE);
+                sc.setAttribute("ec", ec, ScriptContext.ENGINE_SCOPE);
+
+                String base = "/Users/jimmy/workspace/opensource/moqui/moqui-framework/runtime/component"
+                for (Map.Entry<String, ResourceReference> entry : jsFileMap.entrySet()){
+                    if (entry.getValue() == null) continue;
+                    ec.getLogger().info("Evaluating " + entry.getKey());
+
+                    nashornScriptEngine.eval(new InputStreamReader(entry.getValue().openStream()));
+                }
+
+            } catch (ScriptException e) {
+                throw new RuntimeException(e);
+            }
+            return nashornScriptEngine;
+        }
+    };
+
+    public Object getState() {
+        try {
+            ec.getLogger().info("start server rendering getState");
+            Object state = engineHolder.get().invokeFunction("getState");
+            return state;
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to get store state", e);
+        }
+    }
+
+    public String render() {
+        try {
+            ec.getLogger().info("start server rendering");
+            promiseResolved = false;
+
+            // Object html = engineHolder.get().invokeFunction("renderServer")
+            ScriptObjectMirror promise = (ScriptObjectMirror) engineHolder.get().invokeFunction("renderServer");
+            Consumer<Object> fnResolve = { object ->
+                promiseResolved = true
+                html = object;
+                System.out.println("------ from fnResolve (groovy)");
+                System.out.println(String.valueOf(html));
+            };
+
+            System.out.println(fnResolve);
+
+            Consumer<Object> fnReject = { object ->
+                promiseResolved = true
+                error = object;
+                System.out.println("------ from fnReject");
+                System.out.println(String.valueOf(error));
+            };
+            promise.callMember("then", fnResolve, fnReject);
+
+            int interval = 50
+            int i = 1
+            while (!promiseResolved && i < 20) {
+                System.out.println("---- sleep ${interval}ms... ${i}");
+                i = i + 1
+                Thread.sleep(interval);
+            }
+
+            System.out.println(promise.getMember("catch").getClass())
+
+            return String.valueOf(html);
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to render react", e);
+        }
+    }
+
+    private Reader read(String location) {
+        ResourceReference rr = ec.getResource().getLocationReference("component://react-ssr/screen/ReactSSRRoot/" + location);
+        InputStream inputStream = rr.openStream();
+        return new InputStreamReader(inputStream);
+    }
+}
 
         React react = new React(ec, jsFileMap)
 
@@ -58,6 +156,8 @@
         ec.context.put("content", contentHtml);
 
         Object state = react.getState()
+
+        ec.context.put("storeState", new groovy.json.JsonBuilder(state).toString());
         // ec.logger.info(state)
         System.out.println('--------- state')
         System.out.println(state)

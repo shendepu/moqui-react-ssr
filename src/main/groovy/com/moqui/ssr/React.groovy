@@ -1,23 +1,21 @@
-package com.moqui.ssr;
+package com.moqui.ssr
 
-import jdk.nashorn.api.scripting.NashornScriptEngine;
-import jdk.nashorn.api.scripting.ScriptObjectMirror;
-import jdk.nashorn.api.scripting.JSObject;
+import jdk.nashorn.api.scripting.NashornScriptEngine
+import jdk.nashorn.api.scripting.ScriptObjectMirror
+import jdk.nashorn.api.scripting.JSObject
+import java.util.function.Consumer
+import java.util.function.Function
 
-import java.util.Map;
-import java.util.function.Consumer;
-
+import javax.script.ScriptEngineManager
+import javax.script.ScriptException
 import javax.script.ScriptContext;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.util.List;
-
-import org.moqui.resource.ResourceReference;
-import org.moqui.context.ExecutionContext;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.InputStream
+import java.io.InputStreamReader
+import java.io.Reader
+import java.util.List
+import org.moqui.resource.ResourceReference
+import org.moqui.context.ExecutionContext
+import com.fasterxml.jackson.databind.ObjectMapper
 
 public class React {
     private ExecutionContext ec;
@@ -25,6 +23,7 @@ public class React {
 
     private Object html;
     private Object error;
+    private boolean promiseResolved;
 
     React(ExecutionContext ec, Map<String, ResourceReference> jsFileMap) {
         this.ec = ec;
@@ -36,16 +35,29 @@ public class React {
         protected NashornScriptEngine initialValue() {
             NashornScriptEngine nashornScriptEngine = (NashornScriptEngine) new ScriptEngineManager().getEngineByName("nashorn");
             try {
-                for (ResourceReference rr : jsFileMap.values()){
+                for (ResourceReference rr : jsFileMap.values()) {
                     if (rr == null) continue;
                     ec.getLogger().info("jsFileMap: " + rr.getFileName());
                 }
 
-                for (Map.Entry<String, ResourceReference> entry : jsFileMap.entrySet()){
-                    if (entry.getValue() == null) continue;
-                    ec.getLogger().info("Evaluating " + entry.getKey());
-                    Object o = nashornScriptEngine.eval(new InputStreamReader(entry.getValue().openStream()));
-                }
+                Consumer<String> println = { s -> System.out.println(s) };
+                ScriptContext sc = nashornScriptEngine.getContext();
+                sc.setAttribute("println", println, ScriptContext.ENGINE_SCOPE);
+                sc.setAttribute("ec", ec, ScriptContext.ENGINE_SCOPE);
+
+                String base = "/Users/jimmy/workspace/opensource/moqui/moqui-framework/runtime/component"
+//                for (Map.Entry<String, ResourceReference> entry : jsFileMap.entrySet()) {
+//                    if (entry.getValue() == null) continue;
+//                    ec.getLogger().info("Evaluating " + entry.getKey());
+//
+//                    Object o = nashornScriptEngine.eval(new InputStreamReader(entry.getValue().openStream()));
+//                    // nashornScriptEngine.eval("load('${base}/${entry.getValue().getLocation().substring(12)}')");
+//                }
+                nashornScriptEngine.eval("load('js/static/nashorn-polyfill.js')")
+                nashornScriptEngine.eval("load('js/dist/vendor.bd94e9562481625e194c.js')")
+                nashornScriptEngine.eval("load('js/static/nashorn-setTimeout.js')")
+                nashornScriptEngine.eval("load('js/dist/app.baa74eaf1a3020369dfa.js')")
+                nashornScriptEngine.eval("load('js/static/print-app.js')")
 
             } catch (ScriptException e) {
                 throw new RuntimeException(e);
@@ -67,26 +79,28 @@ public class React {
     public String render() {
         try {
             ec.getLogger().info("start server rendering");
+            promiseResolved = false;
 
             // Object html = engineHolder.get().invokeFunction("renderServer")
             ScriptObjectMirror promise = (ScriptObjectMirror) engineHolder.get().invokeFunction("renderServer");
-            Consumer<Object> fnResolve = (object) -> {
+            Consumer<Object> fnResolve = { object ->
                 html = object;
-                System.out.println("------ from fnResolve");
+                System.out.println("------ from fnResolve (groovy)");
                 System.out.println(String.valueOf(html));
             };
 
             System.out.println(fnResolve);
 
-            Consumer<Object> fnReject = (object) -> {
+            Consumer<Object> fnReject = { object ->
                 error = object;
                 System.out.println("------ from fnReject");
                 System.out.println(String.valueOf(error));
             };
             promise.callMember("then", fnResolve, fnReject);
 
-//            engineHolder.get().invokeFunction("saveValue", "one");
-//            engineHolder.get().eval("saveValue('two')");
+            Thread.sleep(2000);
+
+            System.out.println(promise.getMember("catch").getClass())
 
             return String.valueOf(html);
         } catch (Exception e) {

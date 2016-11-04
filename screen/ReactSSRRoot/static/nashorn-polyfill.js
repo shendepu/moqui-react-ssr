@@ -45,4 +45,3 @@ if (!Object.assign) {
 
 window.__IS_SSR__ = true;
 window.__REQ_URL__ = ec.web.requestUrl.substring(45);
-println(window.ec.web.request.getPathInfo());

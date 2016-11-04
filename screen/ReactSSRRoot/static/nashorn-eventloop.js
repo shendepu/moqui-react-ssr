@@ -1,3 +1,9 @@
+/*
+Source is originated from https://github.com/morungos/java-xmlhttprequest
+
+Articles about Nashorn:
+- https://blog.codecentric.de/en/2014/06/project-nashorn-javascript-jvm-polyglott/
+ */
 (function nashornEventLoopMain(context) {
   'use strict';
 

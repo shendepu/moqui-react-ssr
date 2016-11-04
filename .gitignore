@@ -1,4 +1,4 @@
 lib
 build
 
-screen/ReactSSRRoot/dist
+../moqui-react-ssr-demo/screen/ReactSSRRoot/dist

@@ -43,5 +43,16 @@ if (!Object.assign) {
   });
 }
 
+/* ScriptContext set below at global
+  println
+  printlnString
+ __REQ_URL__
+ */
+
 window.__IS_SSR__ = true;
-window.__REQ_URL__ = ec.web.requestUrl.substring(45);
+window.__APP_BASE_PATH__ = ec.context.get('basePath');
+window.println(ec.context.get('basePath'));
+// window.__REQ_URL__ = ec.web.request.getRequestURI();
+window.println(__REQ_URL__)
+window.println(window.__REQ_URL__)
+window.println(ec.web.request.getRequestURI())

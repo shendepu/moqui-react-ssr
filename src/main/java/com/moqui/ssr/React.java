@@ -9,6 +9,7 @@ import java.util.function.Consumer;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.script.ScriptContext;
+import javax.servlet.http.HttpServletRequest;
 import java.io.InputStreamReader;
 
 import org.moqui.resource.ResourceReference;
@@ -22,9 +23,20 @@ public class React {
     private Object error;
     private boolean promiseResolved;
 
+    Consumer<Object> fnResolve = object -> {
+        promiseResolved = true;
+        html = object;
+    };
+
+    Consumer<Object> fnReject = object -> {
+        promiseResolved = true;
+        error = object;
+    };
+
     React(ExecutionContext ec, Map<String, ResourceReference> jsFileMap) {
         this.ec = ec;
         this.jsFileMap = jsFileMap;
+
     }
 
     private ThreadLocal<NashornScriptEngine> engineHolder = new ThreadLocal<NashornScriptEngine>() {
@@ -38,9 +50,15 @@ public class React {
                 }
 
                 Consumer<Object> println = System.out::println;
+                Consumer<Object> printlnString = object -> System.out.println(object.toString());
                 ScriptContext sc = nashornScriptEngine.getContext();
-                sc.setAttribute("println", println, ScriptContext.ENGINE_SCOPE);
+                sc.setAttribute("println", println, ScriptContext.GLOBAL_SCOPE);
+                sc.setAttribute("printlnString", printlnString, ScriptContext.GLOBAL_SCOPE);
                 sc.setAttribute("ec", ec, ScriptContext.ENGINE_SCOPE);
+
+                String locationUrl = getUrlLocation(ec.getWeb().getRequest());
+                sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
+                ec.getLogger().info(locationUrl);
 
                 for (Map.Entry<String, ResourceReference> entry : jsFileMap.entrySet()) {
                     if (entry.getValue() == null) continue;
@@ -69,20 +87,13 @@ public class React {
             ec.getLogger().info("start server rendering");
             promiseResolved = false;
 
-            ScriptObjectMirror promise = (ScriptObjectMirror) engineHolder.get().invokeFunction("renderServer");
-            Consumer<Object> fnResolve = object -> {
-                    promiseResolved = true;
-                    html = object;
-            };
+            NashornScriptEngine engine = engineHolder.get();
 
-            System.out.println(fnResolve);
+            ScriptObjectMirror promise = (ScriptObjectMirror) engine.invokeFunction("renderServer");
 
-            Consumer<Object> fnReject = object -> {
 
-                promiseResolved = true;
-                    error = object;
-            };
             promise.callMember("then", fnResolve, fnReject);
+
 
             int interval = 50;
             int i = 1;
@@ -96,5 +107,12 @@ public class React {
         } catch (Exception e) {
             throw new IllegalStateException("failed to render react", e);
         }
+    }
+
+    public static String getUrlLocation(HttpServletRequest request) {
+        StringBuilder requestUrl = new StringBuilder();
+        requestUrl.append(request.getRequestURI());
+        if (request.getQueryString() != null && request.getQueryString().length() > 0) requestUrl.append("?" + request.getQueryString());
+        return requestUrl.toString();
     }
 }

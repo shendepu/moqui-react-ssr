@@ -1,6 +1,5 @@
 package com.moqui.ssr;
 
-
 import org.moqui.context.ExecutionContextFactory;
 import org.moqui.context.ToolFactory;
 import org.moqui.resource.ResourceReference;
@@ -45,19 +44,24 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
         String reactAppName
         String basePath
         Map<String, ResourceReference> appJsFileMap
+        Map<String, Object> optionMap [optional]
+            - int jsTimeout: ms
      */
     @Override
     public React getInstance(Object... parameters) {
-        if (parameters.length != 3)
-            throw new IllegalArgumentException("ReactSSRToolFactory getInstance needs 3 parameters");
+        if (parameters.length < 3)
+            throw new IllegalArgumentException("ReactSSRToolFactory getInstance must have parameters of [reactAppName, basePath, appJsFileMap]");
         String reactAppName = (String) parameters[0];
         React react = reactMap.get(reactAppName);
         if (react == null) {
             synchronized (reactMap) {
                 String basePath = (String) parameters[1];
-                Map<String, ResourceReference> appJsFileMap = (Map<String, ResourceReference>) parameters[2];
+                Map<String, ResourceReference> appJsFileMap = (Map) parameters[2];
+                Map<String, Object> optionMap;
+                if (parameters.length > 3) optionMap = (Map) parameters[3];
+                else optionMap = new HashMap<>();
 
-                react = new React(ecf, basePath, appJsFileMap);
+                react = new React(ecf, basePath, appJsFileMap, optionMap);
                 reactMap.put(reactAppName, react);
             }
         }

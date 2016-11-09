@@ -24,6 +24,8 @@ public class React {
     private ExecutionContextFactory ecf;
     private String basePath;
     private Map<String, ResourceReference> appJsFileMap;
+    private int jsWaitRetryTimes = 1000;   // wait 5ms * 1000 = 5s
+    private static int jsWaitInterval = 5; // 5ms
 
     private Map<String, CompiledScript> compiledScriptMap = new LinkedHashMap<>();
 
@@ -49,11 +51,15 @@ public class React {
     private Consumer<Object> println = System.out::println;
     private Consumer<Object> printlnString = object -> System.out.println(object.toString());
 
-    React(ExecutionContextFactory ecf, String basePath, Map<String, ResourceReference> appJsFileMap) {
+    React(ExecutionContextFactory ecf, String basePath, Map<String, ResourceReference> appJsFileMap, Map<String, Object> optionMap) {
         this.ecf = ecf;
         this.basePath = basePath;
         this.appJsFileMap = appJsFileMap;
-
+        if (optionMap.containsKey("jsTimeout")) {
+            jsWaitRetryTimes = (int) optionMap.get("jsTimeout") / jsWaitInterval + 1;
+        }
+        System.out.println(Integer.toString(jsWaitRetryTimes) + "wait timeout");
+        System.out.println(Integer.toString(jsWaitInterval) + "wait interval");
         initNashornEngine();
     }
 
@@ -118,12 +124,11 @@ public class React {
             ScriptObjectMirror promise = (ScriptObjectMirror) app.callMember("render");
             promise.callMember("then", fnResolve, fnReject);
 
-            int interval = 5;
             int i = 1;
-            while (!promiseResolved && i < 1000) {
-                System.out.println("---- sleep " + Integer.toString(interval) + " ms... " + Integer.toString(i));
+            while (!promiseResolved && i < jsWaitRetryTimes) {
+                System.out.println("---- sleep " + Integer.toString(jsWaitRetryTimes) + " ms... " + Integer.toString(i));
                 i = i + 1;
-                Thread.sleep(interval);
+                Thread.sleep(jsWaitInterval);
             }
 
             result.put("html", html);

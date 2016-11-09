@@ -13,12 +13,12 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.moqui.context.ExecutionContextFactory;
 import org.moqui.resource.ResourceReference;
-import org.moqui.context.ExecutionContext;
 
 public class React {
     private NashornScriptEngine nashornEngine;
 
     private ExecutionContextFactory ecf;
+    private String basePath;
     private Map<String, ResourceReference> appJsFileMap;
 
     private Map<String, CompiledScript> compiledScriptMap = new LinkedHashMap<>();
@@ -45,8 +45,9 @@ public class React {
     private Consumer<Object> println = System.out::println;
     private Consumer<Object> printlnString = object -> System.out.println(object.toString());
 
-    React(ExecutionContextFactory ecf, Map<String, ResourceReference> appJsFileMap) {
+    React(ExecutionContextFactory ecf, String basePath, Map<String, ResourceReference> appJsFileMap) {
         this.ecf = ecf;
+        this.basePath = basePath;
         this.appJsFileMap = appJsFileMap;
 
         initNashornEngine();
@@ -59,7 +60,7 @@ public class React {
         ScriptContext defaultScriptContext = nashornEngine.getContext();
         defaultScriptContext.setAttribute("println", println, ScriptContext.ENGINE_SCOPE);
         defaultScriptContext.setAttribute("printlnString", printlnString, ScriptContext.ENGINE_SCOPE);
-        defaultScriptContext.setAttribute("__APP_BASE_PATH__", ecf.getExecutionContext().getContext().get("basePath"), ScriptContext.ENGINE_SCOPE);
+        defaultScriptContext.setAttribute("__APP_BASE_PATH__", basePath, ScriptContext.ENGINE_SCOPE);
         defaultScriptContext.setAttribute("__IS_SSR__", true, ScriptContext.ENGINE_SCOPE);
 
         for (Map.Entry<String, ResourceReference> entry : appJsFileMap.entrySet()) {

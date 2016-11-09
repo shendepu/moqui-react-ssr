@@ -43,19 +43,21 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
     /*
        paramters:
         String reactAppName
+        String basePath
         Map<String, ResourceReference> appJsFileMap
      */
     @Override
     public React getInstance(Object... parameters) {
-        if (parameters.length != 2)
-            throw new IllegalArgumentException("ReactSSRToolFactory getInstance needs 2 parameters");
+        if (parameters.length != 3)
+            throw new IllegalArgumentException("ReactSSRToolFactory getInstance needs 3 parameters");
         String reactAppName = (String) parameters[0];
         React react = reactMap.get(reactAppName);
         if (react == null) {
             synchronized (reactMap) {
-                Map<String, ResourceReference> appJsFileMap = (Map<String, ResourceReference>) parameters[1];
+                String basePath = (String) parameters[1];
+                Map<String, ResourceReference> appJsFileMap = (Map<String, ResourceReference>) parameters[2];
 
-                react = new React(ecf, appJsFileMap);
+                react = new React(ecf, basePath, appJsFileMap);
                 reactMap.put(reactAppName, react);
             }
         }

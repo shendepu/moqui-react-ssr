@@ -41,18 +41,9 @@ if (!Object.assign) {
       return to;
     }
   });
-}
+};
 
 /* ScriptContext set below at global
-  println
-  printlnString
- __REQ_URL__
+ println
+ printlnString
  */
-
-window.__IS_SSR__ = true;
-window.__APP_BASE_PATH__ = ec.context.get('basePath');
-window.println(ec.context.get('basePath'));
-// window.__REQ_URL__ = ec.web.request.getRequestURI();
-window.println(__REQ_URL__)
-window.println(window.__REQ_URL__)
-window.println(ec.web.request.getRequestURI())

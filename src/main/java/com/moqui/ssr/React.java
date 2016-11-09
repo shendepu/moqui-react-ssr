@@ -2,10 +2,8 @@ package com.moqui.ssr;
 
 import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
-import jdk.nashorn.api.scripting.ScriptObjectMirror;
 
 import java.io.InputStreamReader;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -13,7 +11,6 @@ import java.util.function.Consumer;
 import javax.script.CompiledScript;
 import javax.script.ScriptContext;
 import javax.script.ScriptException;
-import javax.script.SimpleScriptContext;
 import javax.servlet.http.HttpServletRequest;
 
 import org.moqui.context.ExecutionContextFactory;
@@ -30,27 +27,7 @@ public class React {
 
     private Map<String, CompiledScript> compiledScriptMap = new LinkedHashMap<>();
 
-    private Object html;
-    private Object error;
-    private boolean promiseResolved;
-    private final Object promiseLock = new Object();
-
-    private Consumer<Object> fnResolve = object -> {
-        synchronized (promiseLock) {
-            html = object;
-            error = null;
-            promiseResolved = true;
-        }
-    };
-
-    private Consumer<Object> fnReject = object -> {
-        synchronized (promiseLock) {
-            error = object;
-            html = "";
-            promiseResolved = true;
-        }
-    };
-
+    private ThreadLocal<ReactRender> activeRender = new ThreadLocal<>();
     private Consumer<Object> println = System.out::println;
     private Consumer<Object> printlnString = object -> System.out.println(object.toString());
 
@@ -88,78 +65,29 @@ public class React {
         }
     }
 
-    public Object getState() {
-        try {
-            return nashornEngine.invokeFunction("getState");
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to get store state", e);
-        }
+    private ReactRender getReactRender() {
+        ReactRender render = activeRender.get();
+        if (render != null) return render;
+
+        render = new ReactRender();
+        this.activeRender.set(render);
+        return render;
     }
 
     public Map<String, Object> render(HttpServletRequest request) {
-        Map<String, Object> result = new HashMap<>(2);
-        result.put("html", null);
-        result.put("state", null);
-
-        ScriptContext sc = new SimpleScriptContext();
-        sc.setBindings(nashornEngine.createBindings(), ScriptContext.ENGINE_SCOPE);
-        sc.getBindings(ScriptContext.ENGINE_SCOPE).putAll(nashornEngine.getBindings(ScriptContext.ENGINE_SCOPE));
-
-        String locationUrl = getUrlLocation(request);
-        sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
-        try {
-            try {
-
-                for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
-                    entry.getValue().eval(sc);
-                }
-
-            } catch (ScriptException e) {
-                ecf.getExecutionContext().getLogger().error(e.getMessage());
-                throw new RuntimeException(e);
-            }
-
-            promiseResolved = false;
-
-            ScriptObjectMirror app = (ScriptObjectMirror) sc.getBindings(ScriptContext.ENGINE_SCOPE).get("newApp");
-            ScriptObjectMirror promise = (ScriptObjectMirror) app.callMember("render");
-            promise.callMember("then", fnResolve, fnReject);
-
-            int i = 1;
-            while (!promiseResolved && i < jsWaitRetryTimes) {
-                i = i + 1;
-                Thread.sleep(jsWaitInterval);
-            }
-
-            result.put("html", html);
-            result.put("state", app.callMember("getState"));
-
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to render react", e);
-        }
-
-        return result;
+        ReactRender render = getReactRender();
+        return render.render(request, nashornEngine, compiledScriptMap, jsWaitRetryTimes, jsWaitInterval);
     }
 
-    public void destroy() {
-
-    }
-
-    private static String getUrlLocation(HttpServletRequest request) {
-        StringBuilder requestUrl = new StringBuilder();
-        requestUrl.append(request.getRequestURI());
-        if (request.getQueryString() != null && request.getQueryString().length() > 0) requestUrl.append("?" + request.getQueryString());
-        return requestUrl.toString();
-    }
-
-    private static void printMap(String name, Map<String, Object> map) {
-        System.out.println("==============" + name + "==============");
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            System.out.print(entry.getKey());
-            System.out.print(":");
-            System.out.print(entry.getValue());
-            System.out.print(" ");
-        }
-        System.out.println();
-    }
+//
+//    private static void printMap(String name, Map<String, Object> map) {
+//        System.out.println("==============" + name + "==============");
+//        for (Map.Entry<String, Object> entry : map.entrySet()) {
+//            System.out.print(entry.getKey());
+//            System.out.print(":");
+//            System.out.print(entry.getValue());
+//            System.out.print(" ");
+//        }
+//        System.out.println();
+//    }
 }

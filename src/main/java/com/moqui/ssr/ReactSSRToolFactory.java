@@ -55,7 +55,7 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
             synchronized (reactMap) {
                 Map<String, ResourceReference> appJsFileMap = (Map<String, ResourceReference>) parameters[1];
 
-                react = new React(ecf.getExecutionContext(), appJsFileMap);
+                react = new React(ecf, appJsFileMap);
                 reactMap.put(reactAppName, react);
             }
         }

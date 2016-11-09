@@ -94,8 +94,6 @@ public class React {
     }
 
     public Map<String, Object> render(HttpServletRequest request) {
-        ScriptContext defaultScriptContext = nashornEngine.getContext();
-
         Map<String, Object> result = new HashMap<>(2);
         result.put("html", null);
         result.put("state", null);
@@ -133,9 +131,8 @@ public class React {
 
         } catch (Exception e) {
             throw new IllegalStateException("failed to render react", e);
-        } finally {
-            nashornEngine.setContext(defaultScriptContext);
         }
+
         return result;
     }
 

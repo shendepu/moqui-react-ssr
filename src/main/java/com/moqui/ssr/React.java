@@ -58,8 +58,6 @@ public class React {
         if (optionMap.containsKey("jsTimeout")) {
             jsWaitRetryTimes = (int) optionMap.get("jsTimeout") / jsWaitInterval + 1;
         }
-        System.out.println(Integer.toString(jsWaitRetryTimes) + "wait timeout");
-        System.out.println(Integer.toString(jsWaitInterval) + "wait interval");
         initNashornEngine();
     }
 
@@ -126,7 +124,6 @@ public class React {
 
             int i = 1;
             while (!promiseResolved && i < jsWaitRetryTimes) {
-                System.out.println("---- sleep " + Integer.toString(jsWaitRetryTimes) + " ms... " + Integer.toString(i));
                 i = i + 1;
                 Thread.sleep(jsWaitInterval);
             }

@@ -6,6 +6,4 @@ function getState () {
    return app['getState']();
 };
 
-function newApp() {
-  return new app.default();
-};
+var newApp = new app.default();

@@ -13,6 +13,7 @@ import java.util.function.Consumer;
 import javax.script.CompiledScript;
 import javax.script.ScriptContext;
 import javax.script.ScriptException;
+import javax.script.SimpleScriptContext;
 import javax.servlet.http.HttpServletRequest;
 
 import org.moqui.context.ExecutionContextFactory;
@@ -65,7 +66,7 @@ public class React {
 
     private void initNashornEngine() {
         NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        nashornEngine = (NashornScriptEngine) factory.getScriptEngine("--global-per-engine");
+        nashornEngine = (NashornScriptEngine) factory.getScriptEngine();
 
         ScriptContext defaultScriptContext = nashornEngine.getContext();
         defaultScriptContext.setAttribute("println", println, ScriptContext.ENGINE_SCOPE);
@@ -85,17 +86,6 @@ public class React {
                 throw new RuntimeException(e);
             }
         }
-
-        try {
-            defaultScriptContext.setAttribute("__REQ_URL__", "/", ScriptContext.ENGINE_SCOPE);
-
-            for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
-                entry.getValue().eval();
-            }
-        } catch (ScriptException e) {
-            ecf.getExecutionContext().getLogger().error(e.getMessage());
-            throw new RuntimeException(e);
-        }
     }
 
     public Object getState() {
@@ -110,19 +100,17 @@ public class React {
         Map<String, Object> result = new HashMap<>(2);
         result.put("html", null);
         result.put("state", null);
-        // since render only re-evaluate app.js, others remains in default bindings, the new bindings
-        // does not contain other evaluated js.
-        // nashornEngine.setBindings(nashornEngine.createBindings(), ScriptContext.ENGINE_SCOPE);
-        try {
-            ScriptContext sc = nashornEngine.getContext();
 
+        ScriptContext sc = new SimpleScriptContext();
+        sc.setBindings(nashornEngine.createBindings(), ScriptContext.ENGINE_SCOPE);
+        sc.getBindings(ScriptContext.ENGINE_SCOPE).putAll(nashornEngine.getBindings(ScriptContext.ENGINE_SCOPE));
+
+        String locationUrl = getUrlLocation(request);
+        sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
+        try {
             try {
-                String locationUrl = getUrlLocation(request);
-                sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
 
                 for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
-                    if (!entry.getKey().equals("app")) continue;
-                    System.out.println("Evaluating " + entry.getKey());
                     entry.getValue().eval(sc);
                 }
 
@@ -133,7 +121,7 @@ public class React {
 
             promiseResolved = false;
 
-            ScriptObjectMirror app = (ScriptObjectMirror) nashornEngine.invokeFunction("newApp");
+            ScriptObjectMirror app = (ScriptObjectMirror) sc.getBindings(ScriptContext.ENGINE_SCOPE).get("newApp");
             ScriptObjectMirror promise = (ScriptObjectMirror) app.callMember("render");
             promise.callMember("then", fnResolve, fnReject);
 
@@ -157,10 +145,21 @@ public class React {
 
     }
 
-    public static String getUrlLocation(HttpServletRequest request) {
+    private static String getUrlLocation(HttpServletRequest request) {
         StringBuilder requestUrl = new StringBuilder();
         requestUrl.append(request.getRequestURI());
         if (request.getQueryString() != null && request.getQueryString().length() > 0) requestUrl.append("?" + request.getQueryString());
         return requestUrl.toString();
+    }
+
+    private static void printMap(String name, Map<String, Object> map) {
+        System.out.println("==============" + name + "==============");
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            System.out.print(entry.getKey());
+            System.out.print(":");
+            System.out.print(entry.getValue());
+            System.out.print(" ");
+        }
+        System.out.println();
     }
 }

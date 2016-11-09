@@ -37,6 +37,7 @@ public class React {
     private Consumer<Object> fnResolve = object -> {
         synchronized (promiseLock) {
             html = object;
+            error = null;
             promiseResolved = true;
         }
     };
@@ -44,6 +45,7 @@ public class React {
     private Consumer<Object> fnReject = object -> {
         synchronized (promiseLock) {
             error = object;
+            html = "";
             promiseResolved = true;
         }
     };
@@ -83,6 +85,17 @@ public class React {
                 throw new RuntimeException(e);
             }
         }
+
+        try {
+            defaultScriptContext.setAttribute("__REQ_URL__", "/", ScriptContext.ENGINE_SCOPE);
+
+            for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
+                entry.getValue().eval();
+            }
+        } catch (ScriptException e) {
+            ecf.getExecutionContext().getLogger().error(e.getMessage());
+            throw new RuntimeException(e);
+        }
     }
 
     public Object getState() {
@@ -97,7 +110,9 @@ public class React {
         Map<String, Object> result = new HashMap<>(2);
         result.put("html", null);
         result.put("state", null);
-        nashornEngine.setBindings(nashornEngine.createBindings(), ScriptContext.ENGINE_SCOPE);
+        // since render only re-evaluate app.js, others remains in default bindings, the new bindings
+        // does not contain other evaluated js.
+        // nashornEngine.setBindings(nashornEngine.createBindings(), ScriptContext.ENGINE_SCOPE);
         try {
             ScriptContext sc = nashornEngine.getContext();
 
@@ -106,6 +121,8 @@ public class React {
                 sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
 
                 for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
+                    if (!entry.getKey().equals("app")) continue;
+                    System.out.println("Evaluating " + entry.getKey());
                     entry.getValue().eval(sc);
                 }
 

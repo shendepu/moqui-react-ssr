@@ -14,6 +14,16 @@ You may try the [demo](https://github.com/shendepu/moqui-react-ssr-demo)
 # Requirement for React App
 
 The react app should support server-side rendering. and app should not pollute Javascript global.
+
+## Javascript Polyfills for Nashorn
+
+Nashorn only implements EMACScript, but client-side javascript app may use Browser capability 
+
+![Nashorn](nashorn.png)
+
+This component has already added polyfills for XMLHttpRequest (Not complete version, but can work with fetch) and HTML 5 Specification (Section 6)
+
+The client-side javascript app would need to polyfill `promise` and `fetch` on global if it used them. 
  
 ## Variables 
 

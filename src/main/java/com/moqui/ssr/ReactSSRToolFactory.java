@@ -44,10 +44,12 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
        paramters:
         String reactAppName
         String basePath
-        Map<String, ResourceReference> appJsFileMap
-        Map<String, Object> optionMap [optional]
-        Map<String, Object> poolConfig [optional]
+        Map<String, Map<String, Object>> appJsFileMap
+            - ResourceReference resourceReference
+            - boolean runOnce                       [optional, default false]
+        Map<String, Object> optionMap               [optional]
             - int jsTimeout: ms
+        Map<String, Object> poolConfig              [optional]
      */
     @Override
     @SuppressWarnings(value = "unchecked")
@@ -59,7 +61,7 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
         if (react == null) {
             synchronized (reactMap) {
                 String basePath = (String) parameters[1];
-                Map<String, ResourceReference> appJsFileMap = (Map) parameters[2];
+                Map<String, Map<String, Object>> appJsFileMap = (Map) parameters[2];
                 Map<String, Object> optionMap;
                 Map<String, Object> poolConfig;
 

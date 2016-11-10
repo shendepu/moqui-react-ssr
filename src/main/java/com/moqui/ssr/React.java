@@ -24,11 +24,12 @@ public class React {
 
     private ExecutionContextFactory ecf;
     private String basePath;
-    private Map<String, ResourceReference> appJsFileMap;
+    private Map<String, Map<String, Object>> appJsFileMap;
     private int jsWaitRetryTimes = 1000;   // wait 5ms * 1000 = 5s
     private static int jsWaitInterval = 5; // 5ms
 
     private Map<String, CompiledScript> compiledScriptMap = new LinkedHashMap<>();
+    private Map<String, CompiledScript> compiledScriptRunOnceMap = new LinkedHashMap<>();
 
     private ThreadLocal<ReactRender> activeRender = new ThreadLocal<>();
     private Consumer<Object> println = System.out::println;
@@ -36,7 +37,7 @@ public class React {
 
     private ObjectPool<ScriptContext> scriptContextPool;
 
-    React(ExecutionContextFactory ecf, String basePath, Map<String, ResourceReference> appJsFileMap,
+    React(ExecutionContextFactory ecf, String basePath, Map<String, Map<String, Object>> appJsFileMap,
             Map<String, Object> optionMap, Map<String, Object> poolConfig) {
         this.ecf = ecf;
         this.basePath = basePath;
@@ -58,13 +59,19 @@ public class React {
         defaultScriptContext.setAttribute("__APP_BASE_PATH__", basePath, ScriptContext.ENGINE_SCOPE);
         defaultScriptContext.setAttribute("__IS_SSR__", true, ScriptContext.ENGINE_SCOPE);
 
-        for (Map.Entry<String, ResourceReference> entry : appJsFileMap.entrySet()) {
+        for (Map.Entry<String, Map<String, Object>> entry : appJsFileMap.entrySet()) {
             if (entry.getValue() == null) continue;
             ecf.getExecutionContext().getLogger().info("Compiling " + entry.getKey());
 
             try {
-                CompiledScript cs = nashornEngine.compile(new InputStreamReader(entry.getValue().openStream()));
-                compiledScriptMap.put(entry.getKey(), cs);
+                ResourceReference fileRr = (ResourceReference) entry.getValue().get("resourceReference");
+                // runOnce default to false
+                boolean runOnce = entry.getValue().get("runOnce") != null && (boolean) entry.getValue().get("runOnce");
+                CompiledScript cs = nashornEngine.compile(new InputStreamReader(fileRr.openStream()));
+
+                if (runOnce) compiledScriptRunOnceMap.put(entry.getKey(), cs);
+                else compiledScriptMap.put(entry.getKey(), cs);
+
             } catch (ScriptException e) {
                 ecf.getExecutionContext().getLogger().error("Fail to compile script " + entry.getValue());
                 throw new RuntimeException(e);
@@ -98,7 +105,7 @@ public class React {
 
         config.setBlockWhenExhausted(blockWhenExhausted);
         config.setLifo(lifo);
-        this.scriptContextPool = new GenericObjectPool<>(new GlobalMirrorFactory(nashornEngine), config);
+        this.scriptContextPool = new GenericObjectPool<>(new GlobalMirrorFactory(nashornEngine, compiledScriptRunOnceMap), config);
     }
 
     private ReactRender getReactRender() {
@@ -116,7 +123,7 @@ public class React {
 
     public Map<String, Object> render(HttpServletRequest request) {
         ReactRender render = getReactRender();
-        return render.render(request, nashornEngine, compiledScriptMap, jsWaitRetryTimes, jsWaitInterval);
+        return render.render(request, compiledScriptMap, jsWaitRetryTimes, jsWaitInterval);
     }
 
 //

@@ -1,13 +1,11 @@
 package com.moqui.ssr;
 
-import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
 import org.apache.commons.pool2.ObjectPool;
 
 import javax.script.CompiledScript;
 import javax.script.ScriptContext;
 import javax.script.ScriptException;
-import javax.script.SimpleScriptContext;
 import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +40,7 @@ public class ReactRender {
         this.react = react;
     }
 
-    public Map<String, Object> render(HttpServletRequest request, NashornScriptEngine nashornEngine, Map<String, CompiledScript> compiledScriptMap,
+    public Map<String, Object> render(HttpServletRequest request, Map<String, CompiledScript> compiledScriptMap,
                                       int jsWaitRetryTimes, int jsWaitInterval) {
         Map<String, Object> result = new HashMap<>(2);
         result.put("html", null);

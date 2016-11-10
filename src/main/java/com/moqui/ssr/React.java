@@ -13,6 +13,8 @@ import javax.script.ScriptContext;
 import javax.script.ScriptException;
 import javax.servlet.http.HttpServletRequest;
 
+import org.apache.commons.pool2.ObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.moqui.context.ExecutionContextFactory;
 import org.moqui.resource.ResourceReference;
 
@@ -31,6 +33,8 @@ public class React {
     private Consumer<Object> println = System.out::println;
     private Consumer<Object> printlnString = object -> System.out.println(object.toString());
 
+    private ObjectPool<ScriptContext> scriptContextPool;
+
     React(ExecutionContextFactory ecf, String basePath, Map<String, ResourceReference> appJsFileMap, Map<String, Object> optionMap) {
         this.ecf = ecf;
         this.basePath = basePath;
@@ -39,6 +43,7 @@ public class React {
             jsWaitRetryTimes = (int) optionMap.get("jsTimeout") / jsWaitInterval + 1;
         }
         initNashornEngine();
+        this.scriptContextPool = new GenericObjectPool<>(new GlobalMirrorFactory(nashornEngine));
     }
 
     private void initNashornEngine() {
@@ -69,9 +74,13 @@ public class React {
         ReactRender render = activeRender.get();
         if (render != null) return render;
 
-        render = new ReactRender();
+        render = new ReactRender(this);
         this.activeRender.set(render);
         return render;
+    }
+
+    public ObjectPool<ScriptContext> getScriptContextPool() {
+        return this.scriptContextPool;
     }
 
     public Map<String, Object> render(HttpServletRequest request) {

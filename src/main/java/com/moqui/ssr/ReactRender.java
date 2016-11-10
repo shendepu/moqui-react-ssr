@@ -2,6 +2,7 @@ package com.moqui.ssr;
 
 import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
+import org.apache.commons.pool2.ObjectPool;
 
 import javax.script.CompiledScript;
 import javax.script.ScriptContext;
@@ -13,6 +14,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class ReactRender {
+    private React react;
+
     private Object html;
     private Object error;
     private boolean promiseResolved;
@@ -35,42 +38,51 @@ public class ReactRender {
         }
     };
 
+    public ReactRender(React react) {
+        this.react = react;
+    }
+
     public Map<String, Object> render(HttpServletRequest request, NashornScriptEngine nashornEngine, Map<String, CompiledScript> compiledScriptMap,
                                       int jsWaitRetryTimes, int jsWaitInterval) {
         Map<String, Object> result = new HashMap<>(2);
         result.put("html", null);
         result.put("state", null);
 
-        ScriptContext sc = new SimpleScriptContext();
-        sc.setBindings(nashornEngine.createBindings(), ScriptContext.ENGINE_SCOPE);
-        sc.getBindings(ScriptContext.ENGINE_SCOPE).putAll(nashornEngine.getBindings(ScriptContext.ENGINE_SCOPE));
-
-        String locationUrl = getUrlLocation(request);
-        sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
+        ObjectPool<ScriptContext> pool = react.getScriptContextPool();
         try {
+            ScriptContext sc = pool.borrowObject();
             try {
-                for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
-                    entry.getValue().eval(sc);
+                String locationUrl = getUrlLocation(request);
+                sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
+                try {
+                    for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
+                        entry.getValue().eval(sc);
+                    }
+                } catch (ScriptException e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (ScriptException e) {
-                throw new RuntimeException(e);
+
+                promiseResolved = false;
+
+                ScriptObjectMirror app = (ScriptObjectMirror) sc.getBindings(ScriptContext.ENGINE_SCOPE).get("newApp");
+                ScriptObjectMirror promise = (ScriptObjectMirror) app.callMember("render");
+                promise.callMember("then", fnResolve, fnReject);
+
+                int i = 1;
+                while (!promiseResolved && i < jsWaitRetryTimes) {
+                    i = i + 1;
+                    Thread.sleep(jsWaitInterval);
+                }
+
+                result.put("html", html);
+                result.put("state", app.callMember("getState"));
+
+            } catch (Exception e) {
+                pool.invalidateObject(sc);
+                sc = null;
+            } finally {
+                if (null != sc) pool.returnObject(sc);
             }
-
-            promiseResolved = false;
-
-            ScriptObjectMirror app = (ScriptObjectMirror) sc.getBindings(ScriptContext.ENGINE_SCOPE).get("newApp");
-            ScriptObjectMirror promise = (ScriptObjectMirror) app.callMember("render");
-            promise.callMember("then", fnResolve, fnReject);
-
-            int i = 1;
-            while (!promiseResolved && i < jsWaitRetryTimes) {
-                i = i + 1;
-                Thread.sleep(jsWaitInterval);
-            }
-
-            result.put("html", html);
-            result.put("state", app.callMember("getState"));
-
         } catch (Exception e) {
             throw new IllegalStateException("failed to render react", e);
         }

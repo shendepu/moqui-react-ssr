@@ -48,6 +48,7 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
             - int jsTimeout: ms
      */
     @Override
+    @SuppressWarnings(value = "unchecked")
     public React getInstance(Object... parameters) {
         if (parameters.length < 3)
             throw new IllegalArgumentException("ReactSSRToolFactory getInstance must have parameters of [reactAppName, basePath, appJsFileMap]");

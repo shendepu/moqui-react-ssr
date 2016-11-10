@@ -52,6 +52,7 @@ You may use customized version of [React Redux Starter Kit](https://github.com/s
 
 # Reference 
 
+[Should I use a separate ScriptEngine and CompiledScript instances per each thread?](http://stackoverflow.com/a/30159424)
 https://github.com/winterbe/spring-react-example 
 
 # License

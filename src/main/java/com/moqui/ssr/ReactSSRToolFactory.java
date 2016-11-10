@@ -1,5 +1,6 @@
 package com.moqui.ssr;
 
+import org.apache.commons.collections.map.HashedMap;
 import org.moqui.context.ExecutionContextFactory;
 import org.moqui.context.ToolFactory;
 import org.moqui.resource.ResourceReference;
@@ -45,6 +46,7 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
         String basePath
         Map<String, ResourceReference> appJsFileMap
         Map<String, Object> optionMap [optional]
+        Map<String, Object> poolConfig [optional]
             - int jsTimeout: ms
      */
     @Override
@@ -59,10 +61,15 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
                 String basePath = (String) parameters[1];
                 Map<String, ResourceReference> appJsFileMap = (Map) parameters[2];
                 Map<String, Object> optionMap;
+                Map<String, Object> poolConfig;
+
                 if (parameters.length > 3) optionMap = (Map) parameters[3];
                 else optionMap = new HashMap<>();
 
-                react = new React(ecf, basePath, appJsFileMap, optionMap);
+                if (parameters.length > 4) poolConfig = (Map) parameters[4];
+                else poolConfig = new HashedMap();
+
+                react = new React(ecf, basePath, appJsFileMap, optionMap, poolConfig);
                 reactMap.put(reactAppName, react);
             }
         }

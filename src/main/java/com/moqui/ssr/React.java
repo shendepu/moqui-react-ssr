@@ -15,6 +15,7 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.pool2.ObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.moqui.context.ExecutionContextFactory;
 import org.moqui.resource.ResourceReference;
 
@@ -35,7 +36,8 @@ public class React {
 
     private ObjectPool<ScriptContext> scriptContextPool;
 
-    React(ExecutionContextFactory ecf, String basePath, Map<String, ResourceReference> appJsFileMap, Map<String, Object> optionMap) {
+    React(ExecutionContextFactory ecf, String basePath, Map<String, ResourceReference> appJsFileMap,
+            Map<String, Object> optionMap, Map<String, Object> poolConfig) {
         this.ecf = ecf;
         this.basePath = basePath;
         this.appJsFileMap = appJsFileMap;
@@ -43,7 +45,7 @@ public class React {
             jsWaitRetryTimes = (int) optionMap.get("jsTimeout") / jsWaitInterval + 1;
         }
         initNashornEngine();
-        this.scriptContextPool = new GenericObjectPool<>(new GlobalMirrorFactory(nashornEngine));
+        initScriptContextPool(poolConfig);
     }
 
     private void initNashornEngine() {
@@ -68,6 +70,35 @@ public class React {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    private void initScriptContextPool(Map<String, Object> poolConfigMap) {
+        int minIdle = poolConfigMap.get("minIdle") != null ? (int) poolConfigMap.get("minIdle") : 8;
+        long maxWait = poolConfigMap.get("maxWait") != null ? (long) poolConfigMap.get("maxWait") : 20;
+        int maxIdle = poolConfigMap.get("maxIdle") != null ? (int) poolConfigMap.get("maxIdle") : 10;
+        int maxTotal = poolConfigMap.get("maxTotal") != null ? (int) poolConfigMap.get("maxTotal") : 100;
+        boolean blockWhenExhausted = poolConfigMap.get("blockWhenExhausted") == null || (boolean) poolConfigMap.get("blockWhenExhausted");
+        boolean lifo = poolConfigMap.get("lifo") == null || (boolean) poolConfigMap.get("lifo");
+
+        GenericObjectPoolConfig config = new GenericObjectPoolConfig();
+        config.setMaxIdle(maxIdle);
+        config.setMinIdle(minIdle);
+        config.setMaxTotal(maxTotal);
+        config.setMaxWaitMillis(maxWait);
+
+        if (poolConfigMap.get("minEvictableIdleTimeMillis") !=null)
+            config.setMinEvictableIdleTimeMillis((long) poolConfigMap.get("minEvictableIdleTimeMillis"));
+        if (poolConfigMap.get("numTestsPerEvictionRun") != null)
+            config.setNumTestsPerEvictionRun((int) poolConfigMap.get("numTestsPerEvictionRun"));
+        if (poolConfigMap.get("testOnBorrow") != null) config.setTestOnBorrow((boolean) poolConfigMap.get("testOnBorrow"));
+        if (poolConfigMap.get("testOnReturn") != null) config.setTestOnReturn((boolean) poolConfigMap.get("testOnReturn"));
+        if (poolConfigMap.get("testWhileIdle") != null) config.setTestWhileIdle((boolean) poolConfigMap.get("testWhileIdle"));
+        if (poolConfigMap.get("timeBetweenEvictionRunsMillis") != null)
+            config.setTimeBetweenEvictionRunsMillis((long) poolConfigMap.get("timeBetweenEvictionRunsMillis"));
+
+        config.setBlockWhenExhausted(blockWhenExhausted);
+        config.setLifo(lifo);
+        this.scriptContextPool = new GenericObjectPool<>(new GlobalMirrorFactory(nashornEngine), config);
     }
 
     private ReactRender getReactRender() {

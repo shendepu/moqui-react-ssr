@@ -14,6 +14,12 @@ Articles about Nashorn:
   var RequestBuilder = Java.type('org.apache.http.client.methods.RequestBuilder');
   var FutureCallback = Java.type('org.apache.http.concurrent.FutureCallback');
   var HttpAsyncClientBuilder = Java.type('org.apache.http.impl.nio.client.HttpAsyncClientBuilder');
+  var BasicHeader = Java.type('org.apache.http.message.BasicHeader');
+  var ArrayList = Java.type('java.util.ArrayList');
+  var ByteArrayEntity = Java.type('org.apache.http.entity.ByteArrayEntity');
+  var StringEntity = Java.type('org.apache.http.entity.StringEntity');
+  var EntityBuilder = Java.type('org.apache.http.client.entity.EntityBuilder');
+  var ContentType = Java.type('org.apache.http.entity.ContentType');
 
   var finalException = null;
 
@@ -193,6 +199,7 @@ Articles about Nashorn:
 
     this.setRequestHeader = function (key, value) {
       headers[key] = value;
+      console.log('setRequestHeader - [ key: ' + key + ', value: ' + value + ' ]')
     };
 
     this.open = function (_method, _url, _async, _user, _password) {
@@ -209,6 +216,10 @@ Articles about Nashorn:
       this.requestBuilder = RequestBuilder.create(_method);
       this.requestBuilder.setUri(_url);
 
+      // for (var prop in headers) {
+      //   this.requestBuilder.addHeader(prop, headers[prop])
+      // }
+
       setTimeout(this.onreadystatechange, 0);
     };
 
@@ -217,6 +228,29 @@ Articles about Nashorn:
       var that = this;
 
       var clientBuilder = HttpAsyncClientBuilder.create();
+      var httpHeaders = new ArrayList(headers.length);
+
+      for (var prop in headers) {
+        httpHeaders.add(new BasicHeader(prop, headers[prop]));
+      }
+      console.log(httpHeaders);
+      clientBuilder.setDefaultHeaders(httpHeaders);
+      console.log('===== starting to send data')
+      console.log(data)
+
+      if (data !== undefined && data !== null) {
+        console.log('set entity')
+        console.log(typeof data)
+        var _data = JSON.stringify(data)
+        console.log(_data)
+
+        var entity = new StringEntity(data);
+        console.log(entity)
+        this.requestBuilder.setEntity(entity);
+        this.requestBuilder.setHeader("Accept", "application/json");
+        this.requestBuilder.setHeader("Content-type", "application/json");
+      }
+
       var httpclient = clientBuilder.build();
       httpclient.start();
 

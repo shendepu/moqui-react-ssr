@@ -2,6 +2,8 @@ package com.moqui.ssr;
 
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
 import org.apache.commons.pool2.ObjectPool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.script.CompiledScript;
 import javax.script.ScriptContext;
@@ -12,6 +14,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class ReactRender {
+    private final static Logger logger = LoggerFactory.getLogger(ReactRender.class);
+
     private React react;
 
     private Object html;
@@ -33,6 +37,7 @@ public class ReactRender {
             error = object;
             html = "";
             promiseResolved = true;
+            logger.error("Promise rejected: {}", error);
         }
     };
 
@@ -71,7 +76,7 @@ public class ReactRender {
                     i = i + 1;
                     Thread.sleep(jsWaitInterval);
                 }
-
+                if (!promiseResolved && error == null) logger.error(locationUrl + " timeout");
                 result.put("html", html);
                 result.put("state", app.callMember("getState"));
 

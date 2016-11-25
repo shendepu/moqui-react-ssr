@@ -18,22 +18,26 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.moqui.context.ExecutionContextFactory;
 import org.moqui.resource.ResourceReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class React {
+    private final static Logger logger = LoggerFactory.getLogger(React.class);
+
     private NashornScriptEngine nashornEngine;
 
     private ExecutionContextFactory ecf;
     private String basePath;
     private Map<String, Map<String, Object>> appJsFileMap;
-    private int jsWaitRetryTimes = 1000;   // wait 5ms * 1000 = 5s
-    private static int jsWaitInterval = 5; // 5ms
+    private int jsWaitRetryTimes = 1000;   // wait 20ms * 1000 = 20s
+    private static int jsWaitInterval = 20; // 20ms
 
     private Map<String, CompiledScript> compiledScriptMap = new LinkedHashMap<>();
     private Map<String, CompiledScript> compiledScriptRunOnceMap = new LinkedHashMap<>();
 
     private ThreadLocal<ReactRender> activeRender = new ThreadLocal<>();
-    private Consumer<Object> println = System.out::println;
-    private Consumer<Object> printlnString = object -> System.out.println(object.toString());
+    private static final Consumer<Object> consoleLogInfo = object -> JavascriptLogger.logger.info("{}", object);
+    private static final Consumer<Object> consoleLogError = object -> JavascriptLogger.logger.error("{}", object);
 
     private ObjectPool<ScriptContext> scriptContextPool;
 
@@ -54,8 +58,8 @@ public class React {
         nashornEngine = (NashornScriptEngine) factory.getScriptEngine();
 
         ScriptContext defaultScriptContext = nashornEngine.getContext();
-        defaultScriptContext.setAttribute("println", println, ScriptContext.ENGINE_SCOPE);
-        defaultScriptContext.setAttribute("printlnString", printlnString, ScriptContext.ENGINE_SCOPE);
+        defaultScriptContext.setAttribute("consoleLogInfo", consoleLogInfo, ScriptContext.ENGINE_SCOPE);
+        defaultScriptContext.setAttribute("consoleLogError", consoleLogError, ScriptContext.ENGINE_SCOPE);
         defaultScriptContext.setAttribute("__APP_BASE_PATH__", basePath, ScriptContext.ENGINE_SCOPE);
         defaultScriptContext.setAttribute("__IS_SSR__", true, ScriptContext.ENGINE_SCOPE);
 

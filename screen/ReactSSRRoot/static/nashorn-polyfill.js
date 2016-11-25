@@ -5,8 +5,8 @@ var process = {env: {}};
 var console = {};
 console.debug = print;
 console.warn = print;
-console.log = print;
-console.error = print;
+console.log = consoleLogInfo;
+console.error = consoleLogError;
 console.trace = print;
 
 // https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/Object/assign#Polyfill
@@ -43,7 +43,24 @@ if (!Object.assign) {
   });
 };
 
-/* ScriptContext set below at global
- println
- printlnString
- */
+// (function(self) {
+//   var support = {
+//     searchParams: 'URLSearchParams' in self,
+//     iterable: 'Symbol' in self && 'iterator' in Symbol,
+//     blob: 'FileReader' in self && 'Blob' in self && (function () {
+//       try {
+//         new Blob()
+//         return true
+//       } catch (e) {
+//         return false
+//       }
+//     })(),
+//     formData: 'FormData' in self,
+//     arrayBuffer: 'ArrayBuffer' in self
+//   }
+//   console.log(support);
+//   console.log(self.ArrayBuffer.isView);
+//   console.log(self.require);
+//   console.log(Array.prototype);
+//   console.log(Array.prototype.map);
+// })(this);

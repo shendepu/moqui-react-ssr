@@ -37,7 +37,7 @@ public class ReactRender {
             error = object;
             html = "";
             promiseResolved = true;
-            logger.error("Promise rejected: {}", error);
+            System.out.println(error);
         }
     };
 

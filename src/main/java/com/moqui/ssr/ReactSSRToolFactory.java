@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class ReactSSRToolFactory implements ToolFactory<React> {
 
@@ -19,6 +21,7 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
 
     private final Map<String, React> reactMap = new HashMap<>();
 
+    private final Lock l = new ReentrantLock();
     /**
      * Default empty constructor
      */
@@ -59,20 +62,26 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
         String reactAppName = (String) parameters[0];
         React react = reactMap.get(reactAppName);
         if (react == null) {
-            synchronized (reactMap) {
-                String basePath = (String) parameters[1];
-                Map<String, Map<String, Object>> appJsFileMap = (Map) parameters[2];
-                Map<String, Object> optionMap;
-                Map<String, Object> poolConfig;
+            l.lock();
+            try {
+                react = reactMap.get(reactAppName);
+                if (react == null) {
+                    String basePath = (String) parameters[1];
+                    Map<String, Map<String, Object>> appJsFileMap = (Map) parameters[2];
+                    Map<String, Object> optionMap;
+                    Map<String, Object> poolConfig;
 
-                if (parameters.length > 3) optionMap = (Map) parameters[3];
-                else optionMap = new HashMap<>();
+                    if (parameters.length > 3) optionMap = (Map) parameters[3];
+                    else optionMap = new HashMap<>();
 
-                if (parameters.length > 4) poolConfig = (Map) parameters[4];
-                else poolConfig = new HashedMap();
+                    if (parameters.length > 4) poolConfig = (Map) parameters[4];
+                    else poolConfig = new HashedMap();
 
-                react = new React(ecf, basePath, appJsFileMap, optionMap, poolConfig);
-                reactMap.put(reactAppName, react);
+                    react = new React(ecf, basePath, appJsFileMap, optionMap, poolConfig);
+                    reactMap.put(reactAppName, react);
+                }
+            } finally {
+                l.unlock();
             }
         }
         return react;

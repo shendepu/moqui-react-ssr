@@ -8,42 +8,65 @@ You may try the [demo](https://github.com/shendepu/moqui-react-ssr-demo)
 
 - Use Nashorn rendering react app in JVM
 - Support multiple apps, each app should have a unique name. 
-- Each app use one Nashorn Engine to render all requests
+- All apps share one Nashorn Engine to render all requests
 - Support multi-threads of rendering with isolated global bindings. 
 - Use [Apache Common Pool](https://commons.apache.org/proper/commons-pool/) to pool Nashorn ScriptContext bindings instead of creating one per render
 - Can configure library js to run once when creating ScriptContext. It boosts performance and reduces memory footprint dramatically. But it should be used only when app js don't pollute global.
 
 # Performance 
 
-Run [demo](https://github.com/shendepu/moqui-react-ssr-demo) which configure libaray js only run once, one request completes in `<30ms` and consumes JVM memory < `2MB`.
+Run [demo](https://github.com/shendepu/moqui-react-ssr-demo) which configure libaray js only run once.
 
 ```
-16:34:38.211  INFO 824318946-36           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 3395ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:40.995  INFO 824318946-15           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 558ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:42.087  INFO 824318946-11           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 37ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:43.080  INFO 824318946-14           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 32ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:43.900  INFO 824318946-38           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 100ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:44.555  INFO 824318946-15           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 24ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:45.202  INFO 824318946-17           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 26ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:45.664  INFO 824318946-36           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 27ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:45.959  INFO 824318946-18           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 32ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:46.211  INFO 824318946-16           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 29ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:46.372  INFO 824318946-44           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 29ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:46.605  INFO 824318946-38           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 31ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:46.837  INFO 824318946-15           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 30ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:47.087  INFO 824318946-35           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 30ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:47.323  INFO 824318946-12           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 23ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:47.647  INFO 824318946-16           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 24ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:48.003  INFO 824318946-44           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 31ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:48.376  INFO 824318946-38           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 25ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:48.821  INFO 824318946-11           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 22ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:49.382  INFO 824318946-12           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 92ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:49.751  INFO 824318946-16           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 24ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:50.044  INFO 824318946-17           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 22ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:50.178  INFO 824318946-36           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 28ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:50.418  INFO 824318946-35           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 23ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:50.788  INFO 824318946-18           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 24ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
-16:34:51.031  INFO 824318946-44           o.moqui.i.s.ScreenRenderImpl apps/react-ssr-demo/counter/index.html in 29ms (text/html;charset=utf-8) session 93ii1u1yu7yyot3b4v442geb
+$ ab -n 200 -c 70 http://localhost:8080/apps/react-ssr-demo/counter
+This is ApacheBench, Version 2.3 <$Revision: 1748469 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 100 requests
+Completed 200 requests
+Finished 200 requests
+
+
+Server Software:        Jetty(9.3.14.v20161028)
+Server Hostname:        localhost
+Server Port:            8080
+
+Document Path:          /apps/react-ssr-demo/counter
+Document Length:        2198 bytes
+
+Concurrency Level:      70
+Time taken for tests:   7.648 seconds
+Complete requests:      200
+Failed requests:        0
+Total transferred:      519589 bytes
+HTML transferred:       439600 bytes
+Requests per second:    26.15 [#/sec] (mean)
+Time per request:       2676.838 [ms] (mean)
+Time per request:       38.241 [ms] (mean, across all concurrent requests)
+Transfer rate:          66.34 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    1   0.9      0       3
+Processing:  1530 2518 500.6   2648    3572
+Waiting:     1529 2517 500.5   2648    3572
+Total:       1530 2519 500.9   2648    3574
+WARNING: The median and mean for the initial connection time are not within a normal deviation
+        These results are probably not that reliable.
+
+Percentage of the requests served within a certain time (ms)
+  50%   2648
+  66%   2810
+  75%   2938
+  80%   2982
+  90%   3132
+  95%   3194
+  98%   3354
+  99%   3494
+ 100%   3574 (longest request)
+
 ```
 
 # Requirement for React App

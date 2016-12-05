@@ -8,9 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import javax.script.CompiledScript;
-import javax.script.ScriptContext;
-import javax.script.ScriptException;
+import javax.script.*;
 import javax.servlet.http.HttpServletRequest;
 
 import org.apache.commons.pool2.ObjectPool;
@@ -24,7 +22,9 @@ import org.slf4j.LoggerFactory;
 public class React {
     private final static Logger logger = LoggerFactory.getLogger(React.class);
 
-    private NashornScriptEngine nashornEngine;
+    private static final NashornScriptEngine nashornEngine;
+    private static final Consumer<Object> consoleLogInfo = object -> JavascriptLogger.logger.info("{}", object);
+    private static final Consumer<Object> consoleLogError = object -> JavascriptLogger.logger.error("{}", object);
 
     private ExecutionContextFactory ecf;
     private String basePath;
@@ -36,10 +36,14 @@ public class React {
     private Map<String, CompiledScript> compiledScriptRunOnceMap = new LinkedHashMap<>();
 
     private ThreadLocal<ReactRender> activeRender = new ThreadLocal<>();
-    private static final Consumer<Object> consoleLogInfo = object -> JavascriptLogger.logger.info("{}", object);
-    private static final Consumer<Object> consoleLogError = object -> JavascriptLogger.logger.error("{}", object);
 
     private ObjectPool<ScriptContext> scriptContextPool;
+    private Bindings initialBindings;
+
+    static {
+        NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
+        nashornEngine = (NashornScriptEngine) factory.getScriptEngine();
+    }
 
     React(ExecutionContextFactory ecf, String basePath, Map<String, Map<String, Object>> appJsFileMap,
             Map<String, Object> optionMap, Map<String, Object> poolConfig) {
@@ -53,19 +57,20 @@ public class React {
         initScriptContextPool(poolConfig);
     }
 
-    private void initNashornEngine() {
-        NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        nashornEngine = (NashornScriptEngine) factory.getScriptEngine();
+    synchronized private void initNashornEngine() {
+        ScriptContext sc = new SimpleScriptContext();
 
-        ScriptContext defaultScriptContext = nashornEngine.getContext();
-        defaultScriptContext.setAttribute("consoleLogInfo", consoleLogInfo, ScriptContext.ENGINE_SCOPE);
-        defaultScriptContext.setAttribute("consoleLogError", consoleLogError, ScriptContext.ENGINE_SCOPE);
-        defaultScriptContext.setAttribute("__APP_BASE_PATH__", basePath, ScriptContext.ENGINE_SCOPE);
-        defaultScriptContext.setAttribute("__IS_SSR__", true, ScriptContext.ENGINE_SCOPE);
+        sc.setBindings(nashornEngine.createBindings(), ScriptContext.ENGINE_SCOPE);
+        sc.setAttribute("consoleLogInfo", consoleLogInfo, ScriptContext.ENGINE_SCOPE);
+        sc.setAttribute("consoleLogError", consoleLogError, ScriptContext.ENGINE_SCOPE);
+        sc.setAttribute("__IS_SSR__", true, ScriptContext.ENGINE_SCOPE);
+        sc.setAttribute("__APP_BASE_PATH__", basePath, ScriptContext.ENGINE_SCOPE);
+
+        initialBindings = sc.getBindings(ScriptContext.ENGINE_SCOPE);
 
         for (Map.Entry<String, Map<String, Object>> entry : appJsFileMap.entrySet()) {
             if (entry.getValue() == null) continue;
-            ecf.getExecutionContext().getLogger().info("Compiling " + entry.getKey());
+            logger.info("Compiling " + entry.getKey());
 
             try {
                 ResourceReference fileRr = (ResourceReference) entry.getValue().get("resourceReference");
@@ -77,7 +82,7 @@ public class React {
                 else compiledScriptMap.put(entry.getKey(), cs);
 
             } catch (ScriptException e) {
-                ecf.getExecutionContext().getLogger().error("Fail to compile script " + entry.getValue());
+                logger.error("Fail to compile script " + entry.getValue());
                 throw new RuntimeException(e);
             }
         }
@@ -121,7 +126,7 @@ public class React {
                 ", testOnReturn: " + Boolean.toString(config.getTestOnReturn()) +
                 ", testWhileIdle: " + Boolean.toString(config.getTestWhileIdle()) +
                 ", timeBetweenEvictionRunsMillis: " + Long.toString(config.getTimeBetweenEvictionRunsMillis()) + " ms");
-        this.scriptContextPool = new GenericObjectPool<>(new GlobalMirrorFactory(nashornEngine, compiledScriptRunOnceMap), config);
+        this.scriptContextPool = new GenericObjectPool<>(new GlobalMirrorFactory(nashornEngine, initialBindings, compiledScriptRunOnceMap), config);
     }
 
     private ReactRender getReactRender() {
@@ -140,10 +145,6 @@ public class React {
     public Map<String, Object> render(HttpServletRequest request) {
         ReactRender render = getReactRender();
         return render.render(request, compiledScriptMap, jsWaitRetryTimes, jsWaitInterval);
-    }
-
-    public NashornScriptEngine getNashornEngine() {
-        return nashornEngine;
     }
 
 //

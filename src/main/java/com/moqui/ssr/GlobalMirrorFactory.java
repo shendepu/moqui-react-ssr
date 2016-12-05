@@ -21,10 +21,11 @@ public class GlobalMirrorFactory extends BasePooledObjectFactory<ScriptContext> 
 
     private Lock lock = new ReentrantLock();
 
-    public GlobalMirrorFactory(NashornScriptEngine nashornEngine, Map<String, CompiledScript> compiledScriptMap) {
+    public GlobalMirrorFactory(NashornScriptEngine nashornEngine, Bindings initialBindings,
+                               Map<String, CompiledScript> compiledScriptMap) {
         this.nashornEngine = nashornEngine;
         this.compiledScriptMap = compiledScriptMap;
-        this.initialBindings = nashornEngine.getBindings(ScriptContext.ENGINE_SCOPE);
+        this.initialBindings = initialBindings;
     }
 
     @Override

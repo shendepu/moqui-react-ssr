@@ -57,11 +57,13 @@ public class ReactSSRToolFactory implements ToolFactory<React> {
     @Override
     @SuppressWarnings(value = "unchecked")
     public React getInstance(Object... parameters) {
-        if (parameters.length < 3)
-            throw new IllegalArgumentException("ReactSSRToolFactory getInstance must have parameters of [reactAppName, basePath, appJsFileMap]");
+        if (parameters.length < 1)
+            throw new IllegalArgumentException("ReactSSRToolFactory getInstance must have at least one parameter of reactAppName");
         String reactAppName = (String) parameters[0];
         React react = reactMap.get(reactAppName);
         if (react == null) {
+            if (parameters.length < 3)
+                throw new IllegalArgumentException("ReactSSRToolFactory getInstance must have parameters of [reactAppName, basePath, appJsFileMap]");
             l.lock();
             try {
                 react = reactMap.get(reactAppName);

@@ -85,7 +85,7 @@ public class React {
 
     private void initScriptContextPool(Map<String, Object> poolConfigMap) {
         int minIdle = poolConfigMap.get("minIdle") != null ? (int) poolConfigMap.get("minIdle") : 8;
-        long maxWait = poolConfigMap.get("maxWait") != null ? (long) poolConfigMap.get("maxWait") : 20;
+        long maxWait = poolConfigMap.get("maxWait") != null ? (long) poolConfigMap.get("maxWait") : 20 * 1000;
         int maxIdle = poolConfigMap.get("maxIdle") != null ? (int) poolConfigMap.get("maxIdle") : 10;
         int maxTotal = poolConfigMap.get("maxTotal") != null ? (int) poolConfigMap.get("maxTotal") : 100;
         boolean blockWhenExhausted = poolConfigMap.get("blockWhenExhausted") == null || (boolean) poolConfigMap.get("blockWhenExhausted");
@@ -109,6 +109,18 @@ public class React {
 
         config.setBlockWhenExhausted(blockWhenExhausted);
         config.setLifo(lifo);
+        logger.info("Apache pool config for ScriptContext: " + " minIdle: " + Integer.toString(config.getMinIdle()) +
+                ", maxIdle: " + Integer.toString(config.getMaxIdle()) +
+                ", maxTotal: " + Integer.toString(config.getMaxTotal()) +
+                ", maxWait: " + Long.toString(config.getMaxWaitMillis()) + " ms" +
+                ", blockWhenExhausted: " + Boolean.toString(config.getBlockWhenExhausted()) +
+                ", lifo: " + Boolean.toString(config.getLifo()) +
+                ", minEvictableIdleTimeMillis: " + Long.toString(config.getMinEvictableIdleTimeMillis()) + " ms" +
+                ", numTestsPerEvictionRun: " + Integer.toString(config.getNumTestsPerEvictionRun()) +
+                ", testOnBorrow: " + Boolean.toString(config.getTestOnBorrow()) +
+                ", testOnReturn: " + Boolean.toString(config.getTestOnReturn()) +
+                ", testWhileIdle: " + Boolean.toString(config.getTestWhileIdle()) +
+                ", timeBetweenEvictionRunsMillis: " + Long.toString(config.getTimeBetweenEvictionRunsMillis()) + " ms");
         this.scriptContextPool = new GenericObjectPool<>(new GlobalMirrorFactory(nashornEngine, compiledScriptRunOnceMap), config);
     }
 
@@ -128,6 +140,10 @@ public class React {
     public Map<String, Object> render(HttpServletRequest request) {
         ReactRender render = getReactRender();
         return render.render(request, compiledScriptMap, jsWaitRetryTimes, jsWaitInterval);
+    }
+
+    public NashornScriptEngine getNashornEngine() {
+        return nashornEngine;
     }
 
 //

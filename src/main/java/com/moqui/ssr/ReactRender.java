@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import javax.script.CompiledScript;
 import javax.script.ScriptContext;
 import javax.script.ScriptException;
+import javax.script.SimpleScriptContext;
 import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;

@@ -6,14 +6,13 @@ import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
 import java.io.InputStreamReader;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 
 import javax.script.*;
 import javax.servlet.http.HttpServletRequest;
 
-import org.apache.commons.pool2.ObjectPool;
-import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.moqui.context.ExecutionContext;
 import org.moqui.context.ExecutionContextFactory;
 import org.moqui.resource.ResourceReference;
@@ -30,15 +29,16 @@ public class React {
     private ExecutionContextFactory ecf;
     private String basePath;
     private Map<String, Map<String, Object>> appJsFileMap;
-    private int jsWaitRetryTimes = 1000;   // wait 20ms * 1000 = 20s
-    private static int jsWaitInterval = 20; // 20ms
+    private int jsWaitTimeout = 20 * 1000; // 20s
+    private static int jsWaitInterval = 30; // 30ms
 
     private Map<String, CompiledScript> compiledScriptMap = new LinkedHashMap<>();
     private Map<String, CompiledScript> compiledScriptRunOnceMap = new LinkedHashMap<>();
 
     private ThreadLocal<ReactRender> activeRender = new ThreadLocal<>();
 
-    private ObjectPool<ScriptContext> scriptContextPool;
+    private static ScheduledExecutorService globalScheduledThreadPool = Executors.newScheduledThreadPool(20);
+
     private Bindings initialBindings;
 
     static {
@@ -51,11 +51,9 @@ public class React {
         this.ecf = ecf;
         this.basePath = basePath;
         this.appJsFileMap = appJsFileMap;
-        if (optionMap.containsKey("jsTimeout")) {
-            jsWaitRetryTimes = (int) optionMap.get("jsTimeout") / jsWaitInterval + 1;
-        }
+        if (optionMap.containsKey("jsTimeout")) jsWaitTimeout = (int) optionMap.get("jsTimeout");
+
         initNashornEngine();
-        initScriptContextPool(poolConfig);
     }
 
     synchronized private void initNashornEngine() {
@@ -66,6 +64,7 @@ public class React {
         sc.setAttribute("consoleLogError", consoleLogError, ScriptContext.ENGINE_SCOPE);
         sc.setAttribute("__IS_SSR__", true, ScriptContext.ENGINE_SCOPE);
         sc.setAttribute("__APP_BASE_PATH__", basePath, ScriptContext.ENGINE_SCOPE);
+        sc.setAttribute("__NASHORN_POLYFILL_TIMER__", globalScheduledThreadPool, ScriptContext.ENGINE_SCOPE);
 
         initialBindings = sc.getBindings(ScriptContext.ENGINE_SCOPE);
 
@@ -89,63 +88,18 @@ public class React {
         }
     }
 
-    private void initScriptContextPool(Map<String, Object> poolConfigMap) {
-        int minIdle = poolConfigMap.get("minIdle") != null ? (int) poolConfigMap.get("minIdle") : 8;
-        long maxWait = poolConfigMap.get("maxWait") != null ? (long) poolConfigMap.get("maxWait") : 20 * 1000;
-        int maxIdle = poolConfigMap.get("maxIdle") != null ? (int) poolConfigMap.get("maxIdle") : 10;
-        int maxTotal = poolConfigMap.get("maxTotal") != null ? (int) poolConfigMap.get("maxTotal") : 100;
-        boolean blockWhenExhausted = poolConfigMap.get("blockWhenExhausted") == null || (boolean) poolConfigMap.get("blockWhenExhausted");
-        boolean lifo = poolConfigMap.get("lifo") != null && (boolean) poolConfigMap.get("lifo");
-
-        GenericObjectPoolConfig config = new GenericObjectPoolConfig();
-        config.setMaxIdle(maxIdle);
-        config.setMinIdle(minIdle);
-        config.setMaxTotal(maxTotal);
-        config.setMaxWaitMillis(maxWait);
-
-        if (poolConfigMap.get("minEvictableIdleTimeMillis") !=null)
-            config.setMinEvictableIdleTimeMillis((long) poolConfigMap.get("minEvictableIdleTimeMillis"));
-        if (poolConfigMap.get("numTestsPerEvictionRun") != null)
-            config.setNumTestsPerEvictionRun((int) poolConfigMap.get("numTestsPerEvictionRun"));
-        if (poolConfigMap.get("testOnBorrow") != null) config.setTestOnBorrow((boolean) poolConfigMap.get("testOnBorrow"));
-        if (poolConfigMap.get("testOnReturn") != null) config.setTestOnReturn((boolean) poolConfigMap.get("testOnReturn"));
-        if (poolConfigMap.get("testWhileIdle") != null) config.setTestWhileIdle((boolean) poolConfigMap.get("testWhileIdle"));
-        if (poolConfigMap.get("timeBetweenEvictionRunsMillis") != null)
-            config.setTimeBetweenEvictionRunsMillis((long) poolConfigMap.get("timeBetweenEvictionRunsMillis"));
-
-        config.setBlockWhenExhausted(blockWhenExhausted);
-        config.setLifo(lifo);
-        logger.info("Apache pool config for ScriptContext: " + " minIdle: " + Integer.toString(config.getMinIdle()) +
-                ", maxIdle: " + Integer.toString(config.getMaxIdle()) +
-                ", maxTotal: " + Integer.toString(config.getMaxTotal()) +
-                ", maxWait: " + Long.toString(config.getMaxWaitMillis()) + " ms" +
-                ", blockWhenExhausted: " + Boolean.toString(config.getBlockWhenExhausted()) +
-                ", lifo: " + Boolean.toString(config.getLifo()) +
-                ", minEvictableIdleTimeMillis: " + Long.toString(config.getMinEvictableIdleTimeMillis()) + " ms" +
-                ", numTestsPerEvictionRun: " + Integer.toString(config.getNumTestsPerEvictionRun()) +
-                ", testOnBorrow: " + Boolean.toString(config.getTestOnBorrow()) +
-                ", testOnReturn: " + Boolean.toString(config.getTestOnReturn()) +
-                ", testWhileIdle: " + Boolean.toString(config.getTestWhileIdle()) +
-                ", timeBetweenEvictionRunsMillis: " + Long.toString(config.getTimeBetweenEvictionRunsMillis()) + " ms");
-        this.scriptContextPool = new GenericObjectPool<>(new GlobalMirrorFactory(nashornEngine, initialBindings, compiledScriptRunOnceMap), config);
-    }
-
     private ReactRender getReactRender() {
         ReactRender render = activeRender.get();
         if (render != null) return render;
 
-        render = new ReactRender(this);
+        render = new ReactRender(this, compiledScriptRunOnceMap, nashornEngine, initialBindings);
         this.activeRender.set(render);
         return render;
     }
 
-    public ObjectPool<ScriptContext> getScriptContextPool() {
-        return this.scriptContextPool;
-    }
-
     public Map<String, Object> render(HttpServletRequest request) {
         ReactRender render = getReactRender();
-        return render.render(request, compiledScriptMap, jsWaitRetryTimes, jsWaitInterval);
+        return render.render(request, compiledScriptMap, jsWaitTimeout, jsWaitInterval);
     }
 
     public ExecutionContext getExecutionContext() {

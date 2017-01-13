@@ -1,14 +1,12 @@
 package com.moqui.ssr;
 
+import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
-import org.apache.commons.pool2.ObjectPool;
 import org.moqui.context.AuthenticationRequiredException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.script.CompiledScript;
-import javax.script.ScriptContext;
-import javax.script.ScriptException;
+import javax.script.*;
 import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,11 +17,15 @@ public class ReactRender {
 
     private React react;
 
+    private ScriptContext sc;
     private Object html;
     private Object error;
     private boolean promiseResolved;
     private final Object promiseLock = new Object();
 
+    Map<String, CompiledScript> compiledScriptMap;
+    NashornScriptEngine nashornEngine;
+    Bindings initialBindings;
 
     private Consumer<Object> fnResolve = object -> {
         synchronized (promiseLock) {
@@ -42,66 +44,93 @@ public class ReactRender {
         }
     };
 
-    public ReactRender(React react) {
+    public ReactRender(React react, Map<String, CompiledScript> compiledScriptMap,
+                       NashornScriptEngine nashornEngine, Bindings initialBindings) {
         this.react = react;
+        this.nashornEngine = nashornEngine;
+        this.compiledScriptMap = compiledScriptMap;
+        this.initialBindings = initialBindings;
+
+        initializeScriptContext();
+    }
+
+    private void initializeScriptContext() {
+        sc = new SimpleScriptContext();
+        synchronized (this.nashornEngine) {
+//            logger.warn("========= initializeScriptContext for session begin " +
+//                    react.getExecutionContext().getWeb().getRequest().getSession().getId() +
+//                    " in thread " + Thread.currentThread().getName());
+            sc.setBindings(nashornEngine.createBindings(), ScriptContext.ENGINE_SCOPE);
+            sc.getBindings(ScriptContext.ENGINE_SCOPE).putAll(initialBindings);
+
+            sc.setAttribute("__REQ_URL__", "/", ScriptContext.ENGINE_SCOPE);
+            try {
+                for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
+                    entry.getValue().eval(sc);
+                }
+            } catch (ScriptException e) {
+                throw new RuntimeException(e);
+            }
+
+//            logger.warn("========= initializeScriptContext for session end " +
+//                    react.getExecutionContext().getWeb().getRequest().getSession().getId() +
+//                    " in thread " + Thread.currentThread().getName());
+        }
     }
 
     public Map<String, Object> render(HttpServletRequest request, Map<String, CompiledScript> compiledScriptMap,
-                                      int jsWaitRetryTimes, int jsWaitInterval) {
+                                      int jsWaitTimeout, int jsWaitInterval) {
         Map<String, Object> result = new HashMap<>(2);
         result.put("html", null);
         result.put("state", null);
-
-        ObjectPool<ScriptContext> pool = react.getScriptContextPool();
+        if (sc == null) initializeScriptContext();
         try {
-            ScriptContext sc = pool.borrowObject();
+            String locationUrl = getUrlLocation(request);
+            sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
+            sc.setAttribute("__HTTP_SERVLET_REQUEST__", react.getExecutionContext().getWeb().getRequest(), ScriptContext.ENGINE_SCOPE);
             try {
-                String locationUrl = getUrlLocation(request);
-                sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
-                sc.setAttribute("__HTTP_SERVLET_REQUEST__", react.getExecutionContext().getWeb().getRequest(), ScriptContext.ENGINE_SCOPE);
-                try {
-                    for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
-                        entry.getValue().eval(sc);
-                    }
-                } catch (ScriptException e) {
-                    throw new RuntimeException(e);
+                for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
+                    entry.getValue().eval(sc);
                 }
-
-                promiseResolved = false;
-
-                ScriptObjectMirror app = (ScriptObjectMirror) sc.getBindings(ScriptContext.ENGINE_SCOPE).get("newApp");
-                ScriptObjectMirror promise = (ScriptObjectMirror) app.callMember("render");
-                promise.callMember("then", fnResolve, fnReject);
-
-                int i = 1;
-                while (!promiseResolved && i < jsWaitRetryTimes) {
-                    i = i + 1;
-                    Thread.sleep(jsWaitInterval);
-                }
-                if (!promiseResolved) logger.error(locationUrl + " timeout");
-
-                result.put("html", html);
-                result.put("state", app.callMember("getState"));
-
-                boolean status401 = false;
-                if (Boolean.TRUE.equals(app.getMember("status401"))) status401 = true;
-                if (status401) throw new AuthenticationRequiredException("During javascript execution, 401 response is returned");
-            } catch (Exception e) {
-                pool.invalidateObject(sc);
-                sc = null;
-                if (e instanceof AuthenticationRequiredException) throw e;
-            } finally {
-                if (null != sc && !promiseResolved) {
-                    pool.invalidateObject(sc);
-                    sc = null;
-                }
-                if (null != sc) pool.returnObject(sc);
+            } catch (ScriptException e) {
+                throw new RuntimeException(e);
             }
+
+            promiseResolved = false;
+
+            ScriptObjectMirror app = (ScriptObjectMirror) sc.getBindings(ScriptContext.ENGINE_SCOPE).get("newApp");
+            ScriptObjectMirror promise = (ScriptObjectMirror) app.callMember("render");
+            promise.callMember("then", fnResolve, fnReject);
+
+            int i = 0;
+            int interval = jsWaitInterval;
+            int totalWaitTime = 0;
+            while (!promiseResolved && totalWaitTime < jsWaitTimeout) {
+                Thread.sleep(interval);
+                totalWaitTime = totalWaitTime + interval;
+                interval = interval * 2;
+                i = i + 1;
+            }
+
+//                if (!promiseResolved) logger.error(locationUrl + " timeout session " +
+//                        react.getExecutionContext().getWeb().getRequest().getSession().getId() +
+//                        " in thread " + Thread.currentThread().getName());
+
+            result.put("html", html);
+            result.put("state", app.callMember("getState"));
+
+            boolean status401 = false;
+            if (Boolean.TRUE.equals(app.getMember("status401"))) status401 = true;
+            if (status401) throw new AuthenticationRequiredException("During javascript execution, 401 response is returned");
+
         } catch (AuthenticationRequiredException e) {
           throw e;
         } catch (Exception e) {
-            throw new IllegalStateException("failed to render react", e);
+            throw new IllegalStateException("failed to render react session " +
+                    react.getExecutionContext().getWeb().getRequest().getSession().getId() +
+                    " in thread " + Thread.currentThread().getName(), e);
         } finally {
+            if (!promiseResolved) sc = null;
             resetRender();
         }
 

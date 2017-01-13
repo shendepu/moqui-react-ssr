@@ -19,8 +19,6 @@ public class GlobalMirrorFactory extends BasePooledObjectFactory<ScriptContext> 
     private Map<String, CompiledScript> compiledScriptMap;
     private final Bindings initialBindings;
 
-    private Lock lock = new ReentrantLock();
-
     public GlobalMirrorFactory(NashornScriptEngine nashornEngine, Bindings initialBindings,
                                Map<String, CompiledScript> compiledScriptMap) {
         this.nashornEngine = nashornEngine;
@@ -30,9 +28,9 @@ public class GlobalMirrorFactory extends BasePooledObjectFactory<ScriptContext> 
 
     @Override
     public ScriptContext create() throws Exception {
-        lock.lock();
         ScriptContext sc = new SimpleScriptContext();
-        try {
+
+        synchronized (nashornEngine) {
             sc.setBindings(nashornEngine.createBindings(), ScriptContext.ENGINE_SCOPE);
             sc.getBindings(ScriptContext.ENGINE_SCOPE).putAll(initialBindings);
 
@@ -44,8 +42,6 @@ public class GlobalMirrorFactory extends BasePooledObjectFactory<ScriptContext> 
             } catch (ScriptException e) {
                 throw new RuntimeException(e);
             }
-        } finally {
-            lock.unlock();
         }
         return sc;
     }

@@ -14,6 +14,7 @@ import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.pool2.ObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.moqui.context.ExecutionContext;
 import org.moqui.context.ExecutionContextFactory;
 import org.moqui.resource.ResourceReference;
 import org.slf4j.Logger;
@@ -147,6 +148,9 @@ public class React {
         return render.render(request, compiledScriptMap, jsWaitRetryTimes, jsWaitInterval);
     }
 
+    public ExecutionContext getExecutionContext() {
+        return ecf.getExecutionContext();
+    }
 //
 //    private static void printMap(String name, Map<String, Object> map) {
 //        System.out.println("==============" + name + "==============");

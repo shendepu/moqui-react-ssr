@@ -2,6 +2,7 @@ package com.moqui.ssr;
 
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
 import org.apache.commons.pool2.ObjectPool;
+import org.moqui.context.AuthenticationRequiredException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +58,7 @@ public class ReactRender {
             try {
                 String locationUrl = getUrlLocation(request);
                 sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
+                sc.setAttribute("__HTTP_SERVLET_REQUEST__", react.getExecutionContext().getWeb().getRequest(), ScriptContext.ENGINE_SCOPE);
                 try {
                     for (Map.Entry<String, CompiledScript> entry : compiledScriptMap.entrySet()) {
                         entry.getValue().eval(sc);
@@ -77,15 +79,23 @@ public class ReactRender {
                     Thread.sleep(jsWaitInterval);
                 }
                 if (!promiseResolved && error == null) logger.error(locationUrl + " timeout");
+
                 result.put("html", html);
                 result.put("state", app.callMember("getState"));
 
+                boolean status401 = false;
+                if (Boolean.TRUE.equals(app.getMember("status401"))) status401 = true;
+                if (status401) throw new AuthenticationRequiredException("During javascript execution, 401 response is returned");
+            } catch (AuthenticationRequiredException e) {
+                throw e;
             } catch (Exception e) {
                 pool.invalidateObject(sc);
                 sc = null;
             } finally {
                 if (null != sc) pool.returnObject(sc);
             }
+        } catch (AuthenticationRequiredException e) {
+          throw e;
         } catch (Exception e) {
             throw new IllegalStateException("failed to render react", e);
         }

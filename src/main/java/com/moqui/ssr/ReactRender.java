@@ -112,9 +112,9 @@ public class ReactRender {
                 i = i + 1;
             }
 
-//                if (!promiseResolved) logger.error(locationUrl + " timeout session " +
-//                        react.getExecutionContext().getWeb().getRequest().getSession().getId() +
-//                        " in thread " + Thread.currentThread().getName());
+            if (!promiseResolved) logger.warn(locationUrl + " timeout session " +
+                    react.getExecutionContext().getWeb().getRequest().getSession().getId() +
+                    " in thread " + Thread.currentThread().getName());
 
             result.put("html", html);
             result.put("state", app.callMember("getState"));

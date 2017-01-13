@@ -78,7 +78,7 @@ public class ReactRender {
                     i = i + 1;
                     Thread.sleep(jsWaitInterval);
                 }
-                if (!promiseResolved && error == null) logger.error(locationUrl + " timeout");
+                if (!promiseResolved) logger.error(locationUrl + " timeout");
 
                 result.put("html", html);
                 result.put("state", app.callMember("getState"));
@@ -86,21 +86,32 @@ public class ReactRender {
                 boolean status401 = false;
                 if (Boolean.TRUE.equals(app.getMember("status401"))) status401 = true;
                 if (status401) throw new AuthenticationRequiredException("During javascript execution, 401 response is returned");
-            } catch (AuthenticationRequiredException e) {
-                throw e;
             } catch (Exception e) {
                 pool.invalidateObject(sc);
                 sc = null;
+                if (e instanceof AuthenticationRequiredException) throw e;
             } finally {
+                if (null != sc && !promiseResolved) {
+                    pool.invalidateObject(sc);
+                    sc = null;
+                }
                 if (null != sc) pool.returnObject(sc);
             }
         } catch (AuthenticationRequiredException e) {
           throw e;
         } catch (Exception e) {
             throw new IllegalStateException("failed to render react", e);
+        } finally {
+            resetRender();
         }
 
         return result;
+    }
+
+    private void resetRender() {
+        html = null;
+        error = null;
+        promiseResolved = true;
     }
 
     private static String getUrlLocation(HttpServletRequest request) {

@@ -95,7 +95,7 @@ public class React {
         int maxIdle = poolConfigMap.get("maxIdle") != null ? (int) poolConfigMap.get("maxIdle") : 10;
         int maxTotal = poolConfigMap.get("maxTotal") != null ? (int) poolConfigMap.get("maxTotal") : 100;
         boolean blockWhenExhausted = poolConfigMap.get("blockWhenExhausted") == null || (boolean) poolConfigMap.get("blockWhenExhausted");
-        boolean lifo = poolConfigMap.get("lifo") == null || (boolean) poolConfigMap.get("lifo");
+        boolean lifo = poolConfigMap.get("lifo") != null && (boolean) poolConfigMap.get("lifo");
 
         GenericObjectPoolConfig config = new GenericObjectPoolConfig();
         config.setMaxIdle(maxIdle);

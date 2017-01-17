@@ -19,17 +19,20 @@ public class ReactRender {
 
     private ScriptContext sc;
     private Object html;
+    private Object storeState;
     private Object error;
     private boolean promiseResolved;
     private final Object promiseLock = new Object();
 
-    Map<String, CompiledScript> compiledScriptMap;
-    NashornScriptEngine nashornEngine;
-    Bindings initialBindings;
+    private Map<String, CompiledScript> compiledScriptMap;
+    private NashornScriptEngine nashornEngine;
+    private Bindings initialBindings;
 
     private Consumer<Object> fnResolve = object -> {
         synchronized (promiseLock) {
-            html = object;
+            Map result = (Map) object;
+            html = result.get("html");
+            storeState = result.get("state");
             error = null;
             promiseResolved = true;
         }
@@ -38,7 +41,8 @@ public class ReactRender {
     private Consumer<Object> fnReject = object -> {
         synchronized (promiseLock) {
             error = object;
-            html = "";
+            html = null;
+            storeState = null;
             promiseResolved = true;
             logger.warn("fnReject error:\n" + String.valueOf(error));
         }
@@ -123,7 +127,7 @@ public class ReactRender {
                         " in thread " + Thread.currentThread().getName());
             }
             result.put("html", html);
-            result.put("state", app.callMember("getState"));
+            result.put("state", storeState);
 
             boolean status401 = false;
             if (Boolean.TRUE.equals(app.getMember("status401"))) status401 = true;
@@ -145,6 +149,7 @@ public class ReactRender {
 
     private void resetRender() {
         html = null;
+        storeState = null;
         error = null;
         promiseResolved = true;
     }

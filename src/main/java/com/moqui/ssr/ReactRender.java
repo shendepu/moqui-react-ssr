@@ -102,20 +102,26 @@ public class ReactRender {
             ScriptObjectMirror promise = (ScriptObjectMirror) app.callMember("render");
             promise.callMember("then", fnResolve, fnReject);
 
+            ScriptObjectMirror nashornEventLoop = (ScriptObjectMirror) sc.getBindings(ScriptContext.ENGINE_SCOPE).get("nashornEventLoop");
+            nashornEventLoop.callMember("process");
+
             int i = 0;
             int interval = jsWaitInterval;
             int totalWaitTime = 0;
             while (!promiseResolved && totalWaitTime < jsWaitTimeout) {
+                nashornEventLoop.callMember("process");
                 Thread.sleep(interval);
                 totalWaitTime = totalWaitTime + interval;
                 interval = interval * 2;
                 i = i + 1;
             }
 
-            if (!promiseResolved) logger.warn(locationUrl + " timeout session " +
-                    react.getExecutionContext().getWeb().getRequest().getSession().getId() +
-                    " in thread " + Thread.currentThread().getName());
-
+            if (!promiseResolved) {
+                nashornEventLoop.callMember("reset");
+                logger.warn(locationUrl + " timeout session " +
+                        react.getExecutionContext().getWeb().getRequest().getSession().getId() +
+                        " in thread " + Thread.currentThread().getName());
+            }
             result.put("html", html);
             result.put("state", app.callMember("getState"));
 

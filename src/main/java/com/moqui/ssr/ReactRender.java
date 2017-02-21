@@ -116,13 +116,14 @@ public class ReactRender {
                 nashornEventLoop.callMember("process");
                 Thread.sleep(interval);
                 totalWaitTime = totalWaitTime + interval;
-                interval = interval * 2;
+                if (interval < 500) interval = interval * 2;
                 i = i + 1;
             }
 
             if (!promiseResolved) {
                 nashornEventLoop.callMember("reset");
-                logger.warn(locationUrl + " timeout session " +
+                logger.warn(locationUrl + " timeout " + (totalWaitTime / 1000) + " seconds" +
+                        " in session " +
                         react.getExecutionContext().getWeb().getRequest().getSession().getId() +
                         " in thread " + Thread.currentThread().getName());
             }

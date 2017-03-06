@@ -88,6 +88,8 @@ public class ReactRender {
         result.put("html", null);
         result.put("state", null);
         if (sc == null) initializeScriptContext();
+
+        ScriptObjectMirror nashornEventLoop = null;
         try {
             String locationUrl = getUrlLocation(request);
             sc.setAttribute("__REQ_URL__", locationUrl, ScriptContext.ENGINE_SCOPE);
@@ -106,7 +108,7 @@ public class ReactRender {
             ScriptObjectMirror promise = (ScriptObjectMirror) app.callMember("render");
             promise.callMember("then", fnResolve, fnReject);
 
-            ScriptObjectMirror nashornEventLoop = (ScriptObjectMirror) sc.getBindings(ScriptContext.ENGINE_SCOPE).get("nashornEventLoop");
+            nashornEventLoop = (ScriptObjectMirror) sc.getBindings(ScriptContext.ENGINE_SCOPE).get("nashornEventLoop");
             nashornEventLoop.callMember("process");
 
             int i = 0;
@@ -121,7 +123,6 @@ public class ReactRender {
             }
 
             if (!promiseResolved) {
-                nashornEventLoop.callMember("reset");
                 logger.warn(locationUrl + " timeout " + (totalWaitTime / 1000) + " seconds" +
                         " in session " +
                         react.getExecutionContext().getWeb().getRequest().getSession().getId() +
@@ -141,6 +142,10 @@ public class ReactRender {
                     react.getExecutionContext().getWeb().getRequest().getSession().getId() +
                     " in thread " + Thread.currentThread().getName(), e);
         } finally {
+            // clear the reference to HttpSevletRequest
+            sc.setAttribute("__HTTP_SERVLET_REQUEST__", null, ScriptContext.ENGINE_SCOPE);
+            sc.getBindings(ScriptContext.ENGINE_SCOPE).remove("newApp");
+            if (nashornEventLoop != null) nashornEventLoop.callMember("reset");
             if (!promiseResolved) sc = null;
             resetRender();
         }
